@@ -1,0 +1,22 @@
+[package]
+name = "praxis-proxy-tls"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+description = "TLS configuration types for the Praxis proxy"
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "praxis_tls"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_yaml = { workspace = true }
