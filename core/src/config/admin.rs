@@ -1,0 +1,75 @@
+// SPDX-License-Identifier: LGPL-3.0-only
+// Copyright (c) 2024 Shane Utt
+
+//! Admin endpoint configuration.
+
+use serde::Deserialize;
+
+// -----------------------------------------------------------------------------
+// AdminConfig
+// -----------------------------------------------------------------------------
+
+/// Admin endpoint settings for health check listeners.
+///
+/// ```
+/// use praxis_core::config::AdminConfig;
+///
+/// let admin: AdminConfig = serde_yaml::from_str(
+///     r#"
+/// address: "127.0.0.1:9901"
+/// verbose: true
+/// "#,
+/// )
+/// .unwrap();
+/// assert_eq!(admin.address.as_deref(), Some("127.0.0.1:9901"));
+/// assert!(admin.verbose);
+/// ```
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct AdminConfig {
+    /// Admin endpoint bind address.
+    pub address: Option<String>,
+
+    /// Include per-cluster detail in `/ready` response.
+    pub verbose: bool,
+}
+
+// -----------------------------------------------------------------------------
+// Tests
+// -----------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_are_none_and_false() {
+        let admin = AdminConfig::default();
+        assert!(admin.address.is_none(), "address should default to None");
+        assert!(!admin.verbose, "verbose should default to false");
+    }
+
+    #[test]
+    fn parse_full_config() {
+        let admin: AdminConfig = serde_yaml::from_str(
+            r#"
+address: "127.0.0.1:9901"
+verbose: true
+"#,
+        )
+        .unwrap();
+        assert_eq!(
+            admin.address.as_deref(),
+            Some("127.0.0.1:9901"),
+            "address should be parsed"
+        );
+        assert!(admin.verbose, "verbose should be true");
+    }
+
+    #[test]
+    fn parse_empty_yields_defaults() {
+        let admin: AdminConfig = serde_yaml::from_str("{}").unwrap();
+        assert!(admin.address.is_none(), "address should default to None");
+        assert!(!admin.verbose, "verbose should default to false");
+    }
+}

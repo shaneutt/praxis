@@ -1,0 +1,84 @@
+// SPDX-License-Identifier: LGPL-3.0-only
+// Copyright (c) 2024 Shane Utt
+
+//! Endpoint count and weight validation for clusters.
+
+use super::MAX_ENDPOINTS;
+use crate::{config::Cluster, errors::ProxyError};
+
+// -----------------------------------------------------------------------------
+// Endpoint Validation
+// -----------------------------------------------------------------------------
+
+/// Validate endpoint count and per-endpoint weights for a single cluster.
+pub(super) fn validate_endpoints(cluster: &Cluster) -> Result<(), ProxyError> {
+    if cluster.endpoints.is_empty() {
+        return Err(ProxyError::Config(format!(
+            "cluster '{}' has no endpoints",
+            cluster.name
+        )));
+    }
+    if cluster.endpoints.len() > MAX_ENDPOINTS {
+        return Err(ProxyError::Config(format!(
+            "cluster '{}' has too many endpoints ({}, max {MAX_ENDPOINTS})",
+            cluster.name,
+            cluster.endpoints.len()
+        )));
+    }
+    for ep in &cluster.endpoints {
+        if ep.weight() == 0 {
+            return Err(ProxyError::Config(format!(
+                "cluster '{}': endpoint '{}' has weight 0 (must be >= 1)",
+                cluster.name,
+                ep.address()
+            )));
+        }
+    }
+    Ok(())
+}
+
+// -----------------------------------------------------------------------------
+// Tests
+// -----------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::super::validate_clusters;
+    use crate::config::{Cluster, Config, InsecureOptions};
+
+    #[test]
+    fn reject_empty_endpoints() {
+        let clusters = vec![Cluster::with_defaults("empty", vec![])];
+        let err = validate_clusters(&clusters, &InsecureOptions::default()).unwrap_err();
+        assert!(err.to_string().contains("cluster 'empty' has no endpoints"));
+    }
+
+    #[test]
+    fn validate_clusters_rejects_empty_endpoints() {
+        let clusters = vec![Cluster::with_defaults("empty", vec![])];
+        let err = validate_clusters(&clusters, &InsecureOptions::default()).unwrap_err();
+        assert!(err.to_string().contains("has no endpoints"));
+    }
+
+    #[test]
+    fn reject_zero_weight_endpoint() {
+        let yaml = r#"
+listeners:
+  - name: web
+    address: "0.0.0.0:80"
+    filter_chains: [main]
+filter_chains:
+  - name: main
+    filters:
+      - filter: static_response
+        status: 200
+clusters:
+  - name: "backend"
+    endpoints:
+      - address: "10.0.0.1:80"
+        weight: 0
+"#;
+        let err = Config::from_yaml(yaml).unwrap_err();
+        assert!(err.to_string().contains("weight 0"), "got: {err}");
+    }
+}

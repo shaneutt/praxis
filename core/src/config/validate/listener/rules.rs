@@ -1,0 +1,207 @@
+// SPDX-License-Identifier: LGPL-3.0-only
+// Copyright (c) 2024 Shane Utt
+
+//! Listener validation: presence, count, protocol constraints, and name uniqueness.
+
+use std::collections::HashSet;
+
+use crate::{
+    config::{Listener, ProtocolKind},
+    errors::ProxyError,
+};
+
+// -----------------------------------------------------------------------------
+// Listener Constants
+// -----------------------------------------------------------------------------
+
+/// Maximum number of listeners.
+const MAX_LISTENERS: usize = 1_000;
+
+// -----------------------------------------------------------------------------
+// Listener Validation
+// -----------------------------------------------------------------------------
+
+/// Validate listener count, addresses, protocol constraints, and TLS paths.
+pub(in crate::config::validate) fn validate_listeners(listeners: &mut [Listener]) -> Result<(), ProxyError> {
+    if listeners.is_empty() {
+        return Err(ProxyError::Config("at least one listener required".into()));
+    }
+    if listeners.len() > MAX_LISTENERS {
+        return Err(ProxyError::Config(format!(
+            "too many listeners ({}, max {MAX_LISTENERS})",
+            listeners.len()
+        )));
+    }
+
+    for listener in listeners.iter_mut() {
+        validate_single_listener(listener)?;
+    }
+
+    Ok(())
+}
+
+/// Validate a single listener: address, protocol constraints, TLS, and timeouts.
+fn validate_single_listener(listener: &mut Listener) -> Result<(), ProxyError> {
+    super::address::validate_address(&listener.address, &listener.name)?;
+
+    if listener.protocol == ProtocolKind::Tcp && listener.upstream.is_none() {
+        return Err(ProxyError::Config(format!(
+            "TCP listener '{}' requires an upstream address",
+            listener.name
+        )));
+    }
+
+    if listener.protocol == ProtocolKind::Tcp
+        && let Some(ref upstream) = listener.upstream
+    {
+        super::address::validate_tcp_upstream(upstream, &listener.name)?;
+    }
+
+    super::timeouts::apply_tcp_defaults(listener);
+
+    if let Some(tls) = &listener.tls {
+        tls.validate()
+            .map_err(|e| ProxyError::Config(format!("listener '{name}': {e}", name = listener.name)))?;
+    }
+
+    super::timeouts::validate_listener_timeouts(listener)?;
+
+    if listener.protocol == ProtocolKind::Tcp {
+        super::timeouts::validate_tcp_max_duration(listener)?;
+    }
+
+    Ok(())
+}
+
+/// Reject duplicate listener names.
+pub(in crate::config::validate) fn validate_listener_names(listeners: &[Listener]) -> Result<(), ProxyError> {
+    let mut seen = HashSet::new();
+    for listener in listeners {
+        if !seen.insert(&listener.name) {
+            return Err(ProxyError::Config(format!(
+                "duplicate listener name '{}'",
+                listener.name
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+// -----------------------------------------------------------------------------
+// Tests
+// -----------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::validate_listeners;
+    use crate::config::{Config, Listener};
+
+    #[test]
+    fn reject_no_listeners() {
+        let yaml = r#"
+listeners: []
+"#;
+        let err = Config::from_yaml(yaml).unwrap_err();
+        assert!(err.to_string().contains("at least one listener"));
+    }
+
+    #[test]
+    fn validate_listeners_rejects_empty() {
+        let err = validate_listeners(&mut []).unwrap_err();
+        assert!(err.to_string().contains("at least one listener"));
+    }
+
+    #[test]
+    fn tcp_listener_without_upstream_is_rejected() {
+        let yaml = r#"
+listeners:
+  - name: db
+    address: "0.0.0.0:5432"
+    protocol: tcp
+"#;
+        let err = Config::from_yaml(yaml).unwrap_err();
+        assert!(err.to_string().contains("requires an upstream address"));
+    }
+
+    #[test]
+    fn reject_duplicate_listener_names() {
+        let yaml = r#"
+listeners:
+  - name: web
+    address: "0.0.0.0:8080"
+    filter_chains: [main]
+  - name: web
+    address: "0.0.0.0:9090"
+    filter_chains: [main]
+filter_chains:
+  - name: main
+    filters:
+      - filter: static_response
+        status: 200
+"#;
+        let err = Config::from_yaml(yaml).unwrap_err();
+        assert!(err.to_string().contains("duplicate listener name"));
+    }
+
+    #[test]
+    fn reject_too_many_listeners() {
+        let mut listeners: Vec<Listener> = (0..1_001)
+            .map(|i| Listener {
+                address: format!("127.0.0.1:{}", 10_000 + i),
+                downstream_read_timeout_ms: None,
+                filter_chains: vec![],
+                name: format!("l{i}"),
+                protocol: Default::default(),
+                tcp_idle_timeout_ms: None,
+                tcp_max_duration_secs: None,
+                tls: None,
+                upstream: None,
+            })
+            .collect();
+        let err = validate_listeners(&mut listeners).unwrap_err();
+        assert!(err.to_string().contains("too many listeners"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_tls_cert_path_traversal() {
+        let yaml = r#"
+listeners:
+  - name: web
+    address: "0.0.0.0:443"
+    tls:
+      certificates:
+        - cert_path: "/etc/../../tmp/evil.pem"
+          key_path: "/etc/ssl/key.pem"
+    filter_chains: [main]
+filter_chains:
+  - name: main
+    filters:
+      - filter: static_response
+        status: 200
+"#;
+        let err = Config::from_yaml(yaml).unwrap_err();
+        assert!(err.to_string().contains("path traversal"), "got: {err}");
+    }
+
+    #[test]
+    fn reject_tls_key_path_traversal() {
+        let yaml = r#"
+listeners:
+  - name: web
+    address: "0.0.0.0:443"
+    tls:
+      certificates:
+        - cert_path: "/etc/ssl/cert.pem"
+          key_path: "../secret/key.pem"
+    filter_chains: [main]
+filter_chains:
+  - name: main
+    filters:
+      - filter: static_response
+        status: 200
+"#;
+        let err = Config::from_yaml(yaml).unwrap_err();
+        assert!(err.to_string().contains("path traversal"), "got: {err}");
+    }
+}
