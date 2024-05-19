@@ -1,0 +1,224 @@
+//! Health check configuration for upstream clusters.
+
+use std::fmt;
+
+use serde::{Deserialize, Serialize};
+
+// -----------------------------------------------------------------------------
+// HealthCheckType
+// -----------------------------------------------------------------------------
+
+/// Supported health check probe types.
+///
+/// ```
+/// use praxis_core::config::HealthCheckType;
+///
+/// let http: HealthCheckType = serde_yaml::from_str("http").unwrap();
+/// assert!(matches!(http, HealthCheckType::Http));
+///
+/// let tcp: HealthCheckType = serde_yaml::from_str("tcp").unwrap();
+/// assert!(matches!(tcp, HealthCheckType::Tcp));
+///
+/// let grpc: HealthCheckType = serde_yaml::from_str("grpc").unwrap();
+/// assert!(matches!(grpc, HealthCheckType::Grpc));
+///
+/// let bad: Result<HealthCheckType, _> = serde_yaml::from_str("websocket");
+/// assert!(bad.is_err());
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HealthCheckType {
+    /// HTTP GET probe.
+    Http,
+    /// TCP connect probe.
+    Tcp,
+    /// gRPC health check (not yet supported).
+    Grpc,
+}
+
+impl fmt::Display for HealthCheckType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Http => f.write_str("http"),
+            Self::Tcp => f.write_str("tcp"),
+            Self::Grpc => f.write_str("grpc"),
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// HealthCheckConfig
+// -----------------------------------------------------------------------------
+
+/// Per-cluster active health check settings.
+///
+/// Configures periodic probing of upstream endpoints to detect
+/// failures before routing traffic to them.
+///
+/// ```
+/// # use praxis_core::config::{HealthCheckConfig, HealthCheckType};
+/// let yaml = r#"
+/// type: http
+/// path: "/healthz"
+/// expected_status: 200
+/// interval_ms: 5000
+/// timeout_ms: 2000
+/// healthy_threshold: 2
+/// unhealthy_threshold: 3
+/// "#;
+/// let hc: HealthCheckConfig = serde_yaml::from_str(yaml).unwrap();
+/// assert_eq!(hc.check_type, HealthCheckType::Http);
+/// assert_eq!(hc.path, "/healthz");
+/// assert_eq!(hc.interval_ms, 5000);
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize)]
+
+pub struct HealthCheckConfig {
+    /// Probe type: [`Http`], [`Tcp`], or [`Grpc`].
+    ///
+    /// [`Http`]: HealthCheckType::Http
+    /// [`Tcp`]: HealthCheckType::Tcp
+    /// [`Grpc`]: HealthCheckType::Grpc
+    #[serde(rename = "type")]
+    pub check_type: HealthCheckType,
+
+    /// HTTP path to probe (only used for `http` type).
+    #[serde(default = "default_path")]
+    pub path: String,
+
+    /// Expected HTTP status code for a healthy response.
+    #[serde(default = "default_expected_status")]
+    pub expected_status: u16,
+
+    /// Probe interval in milliseconds.
+    #[serde(default = "default_interval_ms")]
+    pub interval_ms: u64,
+
+    /// Probe timeout in milliseconds. Must be less than `interval_ms`.
+    #[serde(default = "default_timeout_ms")]
+    pub timeout_ms: u64,
+
+    /// Consecutive successes required to mark an endpoint healthy.
+    #[serde(default = "default_healthy_threshold")]
+    pub healthy_threshold: u32,
+
+    /// Consecutive failures required to mark an endpoint unhealthy.
+    #[serde(default = "default_unhealthy_threshold")]
+    pub unhealthy_threshold: u32,
+}
+
+/// Default HTTP probe path.
+fn default_path() -> String {
+    "/".to_owned()
+}
+
+/// Default expected HTTP status code.
+fn default_expected_status() -> u16 {
+    200
+}
+
+/// Default probe interval (5 seconds).
+fn default_interval_ms() -> u64 {
+    5000
+}
+
+/// Default probe timeout (2 seconds).
+fn default_timeout_ms() -> u64 {
+    2000
+}
+
+/// Default consecutive successes to mark healthy.
+fn default_healthy_threshold() -> u32 {
+    2
+}
+
+/// Default consecutive failures to mark unhealthy.
+fn default_unhealthy_threshold() -> u32 {
+    3
+}
+
+// -----------------------------------------------------------------------------
+// Tests
+// -----------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_full_config() {
+        let yaml = r#"
+type: http
+path: "/healthz"
+expected_status: 200
+interval_ms: 5000
+timeout_ms: 2000
+healthy_threshold: 2
+unhealthy_threshold: 3
+"#;
+        let hc: HealthCheckConfig = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(hc.check_type, HealthCheckType::Http, "type should be http");
+        assert_eq!(hc.path, "/healthz", "path mismatch");
+        assert_eq!(hc.expected_status, 200, "expected_status mismatch");
+        assert_eq!(hc.interval_ms, 5000, "interval_ms mismatch");
+        assert_eq!(hc.timeout_ms, 2000, "timeout_ms mismatch");
+        assert_eq!(hc.healthy_threshold, 2, "healthy_threshold mismatch");
+        assert_eq!(hc.unhealthy_threshold, 3, "unhealthy_threshold mismatch");
+    }
+
+    #[test]
+    fn defaults_applied() {
+        let yaml = "type: http\n";
+        let hc: HealthCheckConfig = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(hc.path, "/", "default path should be /");
+        assert_eq!(hc.expected_status, 200, "default expected_status should be 200");
+        assert_eq!(hc.interval_ms, 5000, "default interval_ms should be 5000");
+        assert_eq!(hc.timeout_ms, 2000, "default timeout_ms should be 2000");
+        assert_eq!(hc.healthy_threshold, 2, "default healthy_threshold should be 2");
+        assert_eq!(hc.unhealthy_threshold, 3, "default unhealthy_threshold should be 3");
+    }
+
+    #[test]
+    fn tcp_type_parses() {
+        let yaml = "type: tcp\n";
+        let hc: HealthCheckConfig = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(hc.check_type, HealthCheckType::Tcp, "type should be tcp");
+    }
+
+    #[test]
+    fn roundtrip_via_serde() {
+        let hc = HealthCheckConfig {
+            check_type: HealthCheckType::Http,
+            path: "/health".to_owned(),
+            expected_status: 204,
+            interval_ms: 10000,
+            timeout_ms: 3000,
+            healthy_threshold: 3,
+            unhealthy_threshold: 5,
+        };
+        let value = serde_yaml::to_value(&hc).unwrap();
+        let back: HealthCheckConfig = serde_yaml::from_value(value).unwrap();
+        assert_eq!(back.check_type, hc.check_type, "type should roundtrip");
+        assert_eq!(back.path, hc.path, "path should roundtrip");
+        assert_eq!(back.expected_status, hc.expected_status, "status should roundtrip");
+        assert_eq!(back.interval_ms, hc.interval_ms, "interval should roundtrip");
+        assert_eq!(back.timeout_ms, hc.timeout_ms, "timeout should roundtrip");
+    }
+
+    #[test]
+    fn unknown_type_rejected_by_serde() {
+        let yaml = "type: websocket\n";
+        let result: Result<HealthCheckConfig, _> = serde_yaml::from_str(yaml);
+        assert!(result.is_err(), "unknown type should be rejected by serde");
+    }
+
+    #[test]
+    fn custom_expected_status() {
+        let yaml = r#"
+type: http
+expected_status: 204
+"#;
+        let hc: HealthCheckConfig = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(hc.expected_status, 204, "custom expected_status should be 204");
+    }
+}
