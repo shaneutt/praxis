@@ -1,0 +1,106 @@
+# Security Hardening Guide
+
+Security is a primary motivation of Praxis, not an
+afterthought. This guide covers the secure defaults
+and operational hardening for production deployments.
+
+## Default Security Posture
+
+Praxis ships secure by default and fails closed on
+ambiguous configuration:
+
+- Listeners bind to `127.0.0.1` unless explicitly
+  configured otherwise.
+- TLS certificate verification is enabled by default
+  for upstream connections.
+- Admin endpoints are restricted to localhost; public
+  binding is a validation error.
+- `#![deny(unsafe_code)]` in every crate; no unsafe
+  Rust in the Praxis codebase.
+- Rustls for TLS (no OpenSSL, no C FFI in the TLS
+  path).
+- TLS certificate and key paths reject directory
+  traversal (`..`).
+- Health check targets reject loopback and cloud
+  metadata addresses (SSRF protection).
+- Root execution (UID 0) rejected by default.
+- Supply chain audited via `cargo audit` and
+  `cargo deny`.
+
+## Network Security
+
+- Bind public-facing listeners to specific interfaces
+  rather than `0.0.0.0`.
+- Place Praxis behind a firewall. Expose only the
+  ports your listeners require.
+- Use separate listeners for public traffic and
+  internal admin or health-check endpoints.
+- Restrict admin and metrics endpoints to internal
+  networks or loopback addresses.
+
+## TLS Best Practices
+
+- Set certificate and key file permissions to `0600`,
+  owned by the Praxis process user.
+- Use `min_version: "1.3"` in TLS configuration.
+  TLS 1.2 can be used if required, but TLS 1.0 and 1.1
+  are deprecated and Praxis will not negotiate them.
+- Rotate certificates before expiration. Praxis reads
+  certificates at startup; restart or reload to pick
+  up new certs.
+- Use separate certificate entries with `server_names`
+  for multi-domain deployments (SNI routing).
+
+## Access Control
+
+- **IP ACLs**: Use the `ip_acl` filter to restrict
+  access by source IP. Prefer allowlists over
+  denylists for sensitive endpoints.
+- **Rate Limiting**: Configure `rate_limit` filters
+  to bound request volume per client or globally.
+  Tune limits based on expected traffic patterns.
+- **CORS**: Use the `cors` filter with explicit
+  `allowed_origins` rather than wildcards. Restrict
+  `allowed_methods` and `allowed_headers` to what
+  your application requires.
+
+## Deployment
+
+### Container Security
+
+- Run the container as a non-root user. The official
+  image uses a dedicated `praxis` user.
+- Mount the filesystem read-only where possible.
+  Configuration and TLS materials can be mounted as
+  read-only volumes.
+- Drop all Linux capabilities except those required
+  for binding to privileged ports (if needed).
+- Use a minimal base image to reduce attack surface.
+
+### Kubernetes
+
+- Set `runAsNonRoot: true` and
+  `readOnlyRootFilesystem: true` in the pod security
+  context.
+- Use `NetworkPolicy` to restrict traffic.
+- Store TLS certificates in Kubernetes `Secret`
+  objects and mount them read-only.
+- Set resource limits to prevent resource exhaustion.
+
+## Insecure Configuration Options
+
+The following options weaken security. Use them only
+in development:
+
+- **`verify: false`** on upstream TLS: Disables
+  certificate verification. Acceptable only for
+  local development with self-signed certs.
+- **Binding to `0.0.0.0`**: Exposes the listener on
+  all interfaces. Use specific addresses in
+  production.
+- **Wildcard CORS origins (`"*"`)**: Allows any
+  origin. Use explicit origin lists in production.
+- **Empty IP ACL allowlists**: An empty allowlist
+  permits all traffic. When possible, use principle
+  of least privilege and only allow access from the
+  networks that require it.
