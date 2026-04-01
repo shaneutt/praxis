@@ -1,0 +1,104 @@
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  # -----------------------------------------------------------------
+  # Microbenchmarks
+  # -----------------------------------------------------------------
+
+  microbenchmarks:
+    name: Microbenchmarks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@10c3493d811a9096cee4fdf287e41e852f6a51ba # 1.94.0
+
+      - name: Cache cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run microbenchmarks
+        run: cargo bench -p benchmarks
+
+      - name: Upload results
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: microbenchmark-results
+          path: target/criterion/
+
+  # -----------------------------------------------------------------
+  # Full-Scale Benchmarks
+  # -----------------------------------------------------------------
+
+  full-scale:
+    name: Full-Scale Benchmarks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@10c3493d811a9096cee4fdf287e41e852f6a51ba # 1.94.0
+
+      - name: Install nightly (for fmt)
+        uses: dtolnay/rust-toolchain@5b842231ba77f5c045dba54ac5560fed2db780e2 # nightly-2026-03-28 (rustc 1.96.0)
+        with:
+          components: rustfmt
+
+      - name: Cache cargo
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Fortio
+        run: |
+          curl -L https://github.com/fortio/fortio/releases/download/v1.75.1/fortio_linux_amd64.tar.gz | tar xz
+          sudo mv fortio /usr/local/bin/
+
+      - name: Install Vegeta
+        run: |
+          curl -L https://github.com/tsenart/vegeta/releases/download/v12.13.0/vegeta_12.13.0_linux_amd64.tar.gz | tar xz
+          sudo mv vegeta /usr/local/bin/
+
+      - name: Run full-scale benchmarks
+        run: |
+          mkdir -p benchmarks
+          cargo run -p xtask -- benchmark \
+            --output benchmarks/latest.yaml \
+            --format yaml
+          cargo run -p xtask -- benchmark \
+            --output benchmarks/latest.json \
+            --format json
+          cargo run -p xtask -- benchmark visualize \
+            benchmarks/latest.yaml \
+            --output benchmarks/latest.svg
+
+      - name: Upload results
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: benchmark-results
+          path: benchmarks/
+
+      - name: Log artifact URL
+        run: |
+          echo "Benchmark results uploaded as artifact."
+          echo "View at: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
