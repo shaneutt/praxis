@@ -1,0 +1,53 @@
+# Response Compression
+#
+# Enables transparent response compression using Pingora's built-in
+# compression module. Supports gzip, brotli, and zstd algorithms.
+# Compression is negotiated via Accept-Encoding / Content-Encoding
+# headers automatically.
+#
+# Responses are compressed only when:
+#   - The client sends an Accept-Encoding header
+#   - The response Content-Type matches the allowlist
+#   - The response Content-Length exceeds min_size_bytes (or is chunked)
+#   - The response is not already compressed (no Content-Encoding)
+#
+# Usage:
+#   cargo run -p praxis -- -c examples/configs/payload-processing/compression.yaml
+#   curl -H "Accept-Encoding: gzip" http://localhost:8080/
+
+listeners:
+  - name: default
+    address: "127.0.0.1:8080"
+    filter_chains:
+      - main
+
+filter_chains:
+  - name: main
+    filters:
+      - filter: compression
+        level: 6
+        min_size_bytes: 256
+        gzip:
+          enabled: true
+          level: 6
+        brotli:
+          enabled: true
+          level: 4
+        zstd:
+          enabled: true
+          level: 3
+        content_types:
+          - "text/"
+          - "application/json"
+          - "application/javascript"
+          - "application/xml"
+          - "application/wasm"
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"

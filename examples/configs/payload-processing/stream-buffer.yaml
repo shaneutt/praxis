@@ -1,0 +1,70 @@
+# Stream-Buffer Body Inspection with Action-Based Routing
+#
+# json_body_field inspects request body chunks as they arrive
+# and defers upstream forwarding until the field is extracted
+# (or end-of-stream). The extracted value is promoted to a
+# request header, which the router then matches on to select
+# the correct backend cluster.
+#
+# Example request:
+#
+#   curl -X POST http://localhost:8080/tasks \
+#     -H "Content-Type: application/json" \
+#     -d '{"action": "process", "payload": "..."}'
+#
+# This request routes to the processor cluster. A request
+# with "action": "validate" routes to the validator cluster.
+# Unknown or missing actions fall through to the default
+# cluster.
+#
+# Set max_request_body_bytes to cap request body size across
+# all body modes. Requests exceeding the limit receive 413.
+
+listeners:
+  - name: web
+    address: "0.0.0.0:8080"
+    filter_chains:
+      - body-inspection
+      - routing
+
+filter_chains:
+  # Extract the "action" field from the JSON body and promote
+  # it to the X-Action request header. StreamBuffer mode
+  # accumulates chunks and defers forwarding until extraction
+  # completes.
+  - name: body-inspection
+    filters:
+      - filter: json_body_field
+        field: action
+        header: X-Action
+
+  # Route based on the promoted X-Action header.
+  - name: routing
+    filters:
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            headers:
+              x-action: "process"
+            cluster: processor
+          - path_prefix: "/"
+            headers:
+              x-action: "validate"
+            cluster: validator
+          - path_prefix: "/"
+            cluster: default
+      - filter: load_balancer
+        clusters:
+          - name: processor
+            endpoints:
+              - "127.0.0.1:3001"
+              - "127.0.0.1:3002"
+          - name: validator
+            endpoints:
+              - "127.0.0.1:3003"
+          - name: default
+            endpoints:
+              - "127.0.0.1:3000"
+
+# Global body size ceiling (10 MB).
+max_request_body_bytes: 10485760

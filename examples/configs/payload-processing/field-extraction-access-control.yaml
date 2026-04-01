@@ -1,0 +1,62 @@
+# Field Extraction for Tenant Access Control
+#
+# Extracts the "tenant_id" field from the JSON request body
+# and promotes it to an X-Tenant-Id header. The router then
+# matches on this header to enforce tenant isolation by
+# directing each tenant's requests to dedicated backend
+# clusters.
+#
+# Unknown or missing tenants fall through to a default
+# cluster (which could be a rejection endpoint in
+# production).
+#
+# Example request:
+#
+#   curl -X POST http://localhost:8080/api/data \
+#     -H "Content-Type: application/json" \
+#     -d '{"tenant_id": "acme", "query": "..."}'
+#
+# This routes to the acme cluster. A request with
+# "tenant_id": "globex" routes to the globex cluster.
+# Missing or unrecognized tenants route to the default.
+
+listeners:
+  - name: api-gateway
+    address: "0.0.0.0:8080"
+    filter_chains:
+      - extract-tenant
+      - routing
+
+filter_chains:
+  - name: extract-tenant
+    filters:
+      - filter: json_body_field
+        field: tenant_id
+        header: X-Tenant-Id
+
+  - name: routing
+    filters:
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            headers:
+              x-tenant-id: "acme"
+            cluster: acme
+          - path_prefix: "/"
+            headers:
+              x-tenant-id: "globex"
+            cluster: globex
+          - path_prefix: "/"
+            cluster: default
+      - filter: load_balancer
+        clusters:
+          - name: acme
+            endpoints:
+              - "10.0.1.1:8080"
+              - "10.0.1.2:8080"
+          - name: globex
+            endpoints:
+              - "10.0.2.1:8080"
+          - name: default
+            endpoints:
+              - "10.0.3.1:8080"

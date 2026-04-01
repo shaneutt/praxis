@@ -1,0 +1,97 @@
+# Multi-Listener Body Processing Pipeline
+#
+# Three listeners, each with a different body processing
+# strategy. Demonstrates how filter chain composition per
+# listener controls body buffering, inspection, and routing
+# behavior.
+#
+# Listener 1 (stream-buffer): Extracts multiple JSON fields
+# from the request body in a single parse and routes based
+# on the promoted headers. StreamBuffer mode accumulates
+# chunks and defers forwarding until extraction completes.
+#
+# Listener 2 (buffered): Enforces a body size ceiling via
+# max_request_body_bytes. Oversized requests receive 413
+# before reaching the filter pipeline.
+#
+# Listener 3 (passthrough): No body inspection. Requests
+# are routed by path only, body flows through unmodified
+# in streaming mode.
+#
+# This pattern is common in production gateways that serve
+# multiple protocols or tenants with different processing
+# requirements on dedicated ports.
+
+listeners:
+  - name: stream-buffer
+    address: "0.0.0.0:8080"
+    filter_chains:
+      - extract-fields
+      - model-routing
+
+  - name: buffered
+    address: "0.0.0.0:8081"
+    filter_chains:
+      - extract-model
+      - default-routing
+
+  - name: passthrough
+    address: "0.0.0.0:8082"
+    filter_chains:
+      - default-routing
+
+filter_chains:
+  # Multi-field extraction: model for routing, user_id for
+  # upstream logging.
+  - name: extract-fields
+    filters:
+      - filter: json_body_field
+        fields:
+          - field: model
+            header: X-Model
+          - field: user_id
+            header: X-User-Id
+
+  # Single-field extraction for the buffered listener.
+  - name: extract-model
+    filters:
+      - filter: json_body_field
+        field: model
+        header: X-Model
+
+  # Route by X-Model header when present, fall through to
+  # default otherwise.
+  - name: model-routing
+    filters:
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            headers:
+              x-model: "claude-sonnet-4-5"
+            cluster: claude_sonnet
+          - path_prefix: "/"
+            cluster: default
+      - filter: load_balancer
+        clusters:
+          - name: claude_sonnet
+            endpoints:
+              - "127.0.0.1:3001"
+          - name: default
+            endpoints:
+              - "127.0.0.1:3000"
+
+  # Path-only routing for passthrough and buffered listeners.
+  - name: default-routing
+    filters:
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            cluster: default
+      - filter: load_balancer
+        clusters:
+          - name: default
+            endpoints:
+              - "127.0.0.1:3000"
+
+# Body size ceiling: applies to all listeners.
+max_request_body_bytes: 1048576

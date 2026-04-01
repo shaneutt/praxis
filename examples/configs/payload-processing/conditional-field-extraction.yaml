@@ -1,0 +1,61 @@
+# Conditional Field Extraction
+#
+# Uses the condition system to apply json_body_field only on
+# specific request paths. Requests to /v1/ get the "model"
+# field extracted into X-Model; all other paths skip body
+# inspection entirely, avoiding unnecessary buffering.
+#
+# This is useful when a single gateway serves both AI
+# inference endpoints (which need body-based routing) and
+# static or administrative endpoints (which do not).
+#
+# Example requests:
+#
+#   # Body inspected, X-Model extracted:
+#   curl -X POST http://localhost:8080/v1/chat/completions \
+#     -H "Content-Type: application/json" \
+#     -d '{"model": "mistral-large-latest", "messages": [...]}'
+#
+#   # Body NOT inspected, forwarded directly:
+#   curl http://localhost:8080/healthz
+
+listeners:
+  - name: gateway
+    address: "0.0.0.0:8080"
+    filter_chains:
+      - conditional-extraction
+      - routing
+
+filter_chains:
+  - name: conditional-extraction
+    filters:
+      - filter: json_body_field
+        conditions:
+          - when:
+              path_prefix: "/v1/"
+        field: model
+        header: X-Model
+
+  - name: routing
+    filters:
+      - filter: router
+        routes:
+          - path_prefix: "/v1/"
+            headers:
+              x-model: "mistral-large-latest"
+            cluster: mistral_large
+          - path_prefix: "/v1/"
+            cluster: default-inference
+          - path_prefix: "/"
+            cluster: static
+      - filter: load_balancer
+        clusters:
+          - name: mistral_large
+            endpoints:
+              - "10.0.1.1:8080"
+          - name: default-inference
+            endpoints:
+              - "10.0.2.1:8080"
+          - name: static
+            endpoints:
+              - "10.0.3.1:8080"

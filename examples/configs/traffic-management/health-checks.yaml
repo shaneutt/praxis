@@ -1,0 +1,64 @@
+# Active Health Checks
+#
+# Per-cluster health checks probe endpoints on a timer and remove
+# unhealthy backends from the load balancer rotation. Supports HTTP
+# GET probes (check status code) and TCP connect probes.
+#
+# Usage:
+#   cargo run -p praxis -- -c examples/configs/traffic-management/health-checks.yaml
+
+listeners:
+  - name: default
+    address: "127.0.0.1:8080"
+    filter_chains:
+      - main
+
+admin_address: "127.0.0.1:9090"
+
+clusters:
+  - name: backend
+    endpoints:
+      - "127.0.0.1:3001"
+      - "127.0.0.1:3002"
+      - "127.0.0.1:3003"
+    health_check:
+      type: http
+      path: "/healthz"
+      expected_status: 200
+      interval_ms: 5000
+      timeout_ms: 2000
+      healthy_threshold: 2
+      unhealthy_threshold: 3
+
+  - name: database
+    endpoints:
+      - "127.0.0.1:5432"
+      - "127.0.0.1:5433"
+    health_check:
+      type: tcp
+      interval_ms: 10000
+      timeout_ms: 3000
+      healthy_threshold: 1
+      unhealthy_threshold: 2
+
+filter_chains:
+  - name: main
+    filters:
+      - filter: router
+        routes:
+          - path_prefix: "/api"
+            cluster: backend
+          - path_prefix: "/"
+            cluster: backend
+
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3001"
+              - "127.0.0.1:3002"
+              - "127.0.0.1:3003"
+          - name: database
+            endpoints:
+              - "127.0.0.1:5432"
+              - "127.0.0.1:5433"

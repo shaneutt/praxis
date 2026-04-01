@@ -1,0 +1,52 @@
+# Body Size Limit with Field Extraction
+#
+# Combines max_request_body_bytes with json_body_field to
+# enforce a global body ceiling while still performing
+# body-based routing. Requests exceeding the limit receive
+# 413 (Payload Too Large) before any extraction occurs.
+#
+# The global limit caps the StreamBuffer accumulation, so
+# even if the filter declares no per-filter limit, the
+# pipeline enforces the ceiling.
+#
+# Example:
+#
+#   # Small body: extracted and routed normally
+#   curl -X POST http://localhost:8080/v1/chat \
+#     -H "Content-Type: application/json" \
+#     -d '{"model": "claude-sonnet-4-5", "prompt": "hello"}'
+#
+#   # Oversized body: rejected with 413
+#   curl -X POST http://localhost:8080/v1/chat \
+#     -H "Content-Type: application/json" \
+#     -d @large-payload.json
+
+listeners:
+  - name: gateway
+    address: "0.0.0.0:8080"
+    filter_chains:
+      - extract-model
+      - routing
+
+filter_chains:
+  - name: extract-model
+    filters:
+      - filter: json_body_field
+        field: model
+        header: X-Model
+
+  - name: routing
+    filters:
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"
+
+# 1 KB ceiling: any request body over 1024 bytes is
+# rejected with 413 before field extraction runs.
+max_request_body_bytes: 1024

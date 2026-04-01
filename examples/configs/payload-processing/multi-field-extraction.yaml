@@ -1,0 +1,65 @@
+# Multi-Field Extraction
+#
+# A single json_body_field filter extracts multiple top-level
+# JSON fields into separate request headers in one pass. The
+# body is parsed once regardless of how many fields are
+# configured.
+#
+# This example extracts both "model" and "user_id" from an
+# LLM API request body. The model header drives routing to
+# the correct inference backend while the user ID is
+# forwarded for upstream logging and rate limiting.
+#
+# Example request:
+#
+#   curl -X POST http://localhost:8080/v1/chat/completions \
+#     -H "Content-Type: application/json" \
+#     -d '{"model": "claude-sonnet-4-5", "user_id": "u-42", ...}'
+#
+# Both X-Model and X-User-Id headers are injected before
+# the router runs. The router matches on X-Model to select
+# the backend cluster.
+
+listeners:
+  - name: inference-gateway
+    address: "0.0.0.0:8080"
+    filter_chains:
+      - extract-fields
+      - routing
+
+filter_chains:
+  - name: extract-fields
+    filters:
+      - filter: json_body_field
+        fields:
+          - field: model
+            header: X-Model
+          - field: user_id
+            header: X-User-Id
+
+  - name: routing
+    filters:
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            headers:
+              x-model: "claude-sonnet-4-5"
+            cluster: claude_sonnet
+          - path_prefix: "/"
+            headers:
+              x-model: "claude-3"
+            cluster: claude3
+          - path_prefix: "/"
+            cluster: default
+      - filter: load_balancer
+        clusters:
+          - name: claude_sonnet
+            endpoints:
+              - "10.0.1.1:8080"
+              - "10.0.1.2:8080"
+          - name: claude3
+            endpoints:
+              - "10.0.2.1:8080"
+          - name: default
+            endpoints:
+              - "10.0.3.1:8080"

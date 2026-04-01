@@ -1,0 +1,35 @@
+# Downstream Read Timeout
+#
+# Protects against slow client attacks by limiting how long the
+# proxy waits for data from downstream clients. Applied via
+# Pingora's per-session read timeout.
+#
+# The timeout applies to body reads and (on keepalive
+# connections when keepalive timeout is disabled) subsequent
+# request header reads. Pingora's internal 60s default covers
+# initial header reads on fresh connections.
+#
+# Usage:
+#   cargo run -p praxis -- -c examples/configs/security/downstream-read-timeout.yaml
+#   curl http://localhost:8080/
+
+listeners:
+  - name: default
+    address: "127.0.0.1:8080"
+    downstream_read_timeout_ms: 10000   # 10 seconds
+    filter_chains:
+      - main
+
+filter_chains:
+  - name: main
+    filters:
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"

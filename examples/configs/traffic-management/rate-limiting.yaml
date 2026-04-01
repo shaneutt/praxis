@@ -1,0 +1,61 @@
+# Rate Limiting
+#
+# Token bucket rate limiter with per-IP or global modes.
+# Rejects excess traffic with 429 and standard rate limit headers.
+#
+# This example shows per-IP limiting on :8080 and global limiting
+# on :8081 sharing a single bucket across all clients.
+#
+# Usage:
+#   cargo run -p praxis -- -c examples/configs/traffic-management/rate-limiting.yaml
+#   curl -v http://localhost:8080/
+#   curl -v http://localhost:8081/
+#   # Repeat rapidly to trigger 429 Too Many Requests
+
+listeners:
+  - name: per-ip
+    address: "127.0.0.1:8080"
+    filter_chains:
+      - per-ip-chain
+
+  - name: global
+    address: "127.0.0.1:8081"
+    filter_chains:
+      - global-chain
+
+filter_chains:
+  - name: per-ip-chain
+    filters:
+      - filter: rate_limit
+        mode: per_ip         # independent bucket per source IP
+        rate: 10             # 10 tokens per second
+        burst: 20            # max bucket capacity
+
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"
+
+  - name: global-chain
+    filters:
+      - filter: rate_limit
+        mode: global         # one shared bucket for all clients
+        rate: 50             # 50 tokens per second
+        burst: 100           # max bucket capacity
+
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"

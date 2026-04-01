@@ -1,0 +1,79 @@
+# Guardrails
+#
+# Reject requests that match header or body inspection
+# rules. Rules use literal substring matching (`contains`)
+# or regex (`pattern`). Set `negate: true` to invert the
+# match (reject when content does NOT match). Any triggered
+# rule returns 401 Unauthorized.
+#
+# Usage:
+#   cargo run -p praxis -- \
+#     -c examples/configs/security/guardrails.yaml
+#
+# Exercise:
+#   # 200: clean request
+#   curl http://localhost:8080/
+#
+#   # 401: bad-bot User-Agent matches pattern
+#   curl -H "User-Agent: bad-bot/1.0" \
+#     http://localhost:8080/
+#
+#   # 401: body contains "evilmonkey"
+#   curl -d "evilmonkey payload" http://localhost:8080/
+#
+#   # 401: missing X-Authorized header (negate rule)
+#   curl -X POST http://localhost:8080/
+#
+#   # 200: X-Authorized header present with "trusted"
+#   curl -H "X-Authorized: trusted-client" \
+#     http://localhost:8080/
+#
+#   # 401: body is not valid JSON shape (negate rule)
+#   curl -d "not json" http://localhost:8080/
+#
+#   # 200: body looks like JSON
+#   curl -d '{"key":"value"}' http://localhost:8080/
+
+listeners:
+  - name: default
+    address: "127.0.0.1:8080"
+    filter_chains:
+      - main
+
+filter_chains:
+  - name: main
+    filters:
+      - filter: guardrails
+        rules:
+          # Block known bad bots by User-Agent
+          - target: header
+            name: "User-Agent"
+            pattern: "bad-bot.*"
+
+          # Block body containing suspicious content
+          - target: body
+            contains: "evilmonkey"
+
+          # Require X-Authorized header to contain "trusted"
+          # (reject if NOT present or NOT matching)
+          - target: header
+            name: "X-Authorized"
+            contains: "trusted"
+            negate: true
+
+          # Require body to look like JSON
+          # (reject if body does NOT match the pattern)
+          - target: body
+            pattern: "^\\{.*\\}$"
+            negate: true
+
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"

@@ -1,0 +1,77 @@
+# Multi-Listener
+#
+# Demonstrates multiple HTTP listeners, each with its own
+# filter pipeline. Different listeners can apply different
+# filters to the same upstream backends.
+#
+#   Port 8080 — public HTTP (adds request ID + access log)
+#   Port 8443 — public HTTPS (same pipeline, with TLS)
+#   Port 9090 — internal admin (no observability filters)
+#
+# Usage:
+#   cargo run -p praxis -- -c examples/configs/operations/multi-listener.yaml
+#   curl http://localhost:8080/
+#   curl http://localhost:9090/
+
+listeners:
+  - name: http
+    address: "127.0.0.1:8080"
+    filter_chains:
+      - public
+
+  - name: https
+    address: "127.0.0.1:8443"
+    filter_chains:
+      - public
+    tls:
+      cert_path: /etc/praxis/tls/cert.pem
+      key_path: /etc/praxis/tls/key.pem
+
+  - name: admin
+    address: "127.0.0.1:9090"
+    filter_chains:
+      - internal
+
+filter_chains:
+  - name: public
+    filters:
+      - filter: request_id
+      - filter: access_log
+
+      - filter: router
+        routes:
+          - path_prefix: "/api/"
+            cluster: api
+          - path_prefix: "/"
+            cluster: web
+
+      - filter: load_balancer
+        clusters:
+          - name: api
+            endpoints:
+              - "127.0.0.1:3001"
+              - "127.0.0.1:3002"
+
+          - name: web
+            endpoints:
+              - "127.0.0.1:4000"
+
+  - name: internal
+    filters:
+      - filter: router
+        routes:
+          - path_prefix: "/api/"
+            cluster: api
+          - path_prefix: "/"
+            cluster: web
+
+      - filter: load_balancer
+        clusters:
+          - name: api
+            endpoints:
+              - "127.0.0.1:3001"
+              - "127.0.0.1:3002"
+
+          - name: web
+            endpoints:
+              - "127.0.0.1:4000"
