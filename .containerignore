@@ -9,4 +9,4 @@ deny.toml
 tests/
 xtask/
 examples/
-praxis-benchmarks/
+benchmarks/
