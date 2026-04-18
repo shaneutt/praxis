@@ -185,11 +185,19 @@ $(BINUTILS_DIR):
 
 H2SPEC_SHA256_linux_amd64  := 157ee0de702e01ad40e752dbf074b366027e550c8e7504f9450da2809e279318
 H2SPEC_SHA256_darwin_amd64 := 981cb9f90a6f5e36300063022bd4eb7438d3dcf66d63a146a8541359697d1601
-H2SPEC_SHA256 := $(H2SPEC_SHA256_$(UNAME_S)_$(ARCH_GO))
+
+# h2spec has no arm64 builds; fall back to amd64 (runs under Rosetta on macOS).
+ifeq ($(UNAME_S)_$(ARCH_GO),darwin_arm64)
+  H2SPEC_ARCH := amd64
+else
+  H2SPEC_ARCH := $(ARCH_GO)
+endif
+
+H2SPEC_SHA256 := $(H2SPEC_SHA256_$(UNAME_S)_$(H2SPEC_ARCH))
 
 $(H2SPEC): | $(BINUTILS_DIR)
 	curl -sSfL -o $(BINUTILS_DIR)/h2spec.tar.gz \
-		https://github.com/summerwind/h2spec/releases/download/v$(H2SPEC_VERSION)/h2spec_$(UNAME_S)_$(ARCH_GO).tar.gz
+		https://github.com/summerwind/h2spec/releases/download/v$(H2SPEC_VERSION)/h2spec_$(UNAME_S)_$(H2SPEC_ARCH).tar.gz
 	$(if $(H2SPEC_SHA256),echo "$(H2SPEC_SHA256)  $(BINUTILS_DIR)/h2spec.tar.gz" | sha256sum --check --status,)
 	tar xz -C $(BINUTILS_DIR) -f $(BINUTILS_DIR)/h2spec.tar.gz h2spec
 	rm -f $(BINUTILS_DIR)/h2spec.tar.gz
