@@ -285,6 +285,7 @@ fn build_static_response_filter(entry: &RoutedEntry) -> FilterEntry {
         filter_type: "static_response".to_owned(),
         conditions,
         response_conditions: vec![],
+        failure_mode: Default::default(),
         config: serde_yaml::Value::Mapping(filter_config),
     }
 }

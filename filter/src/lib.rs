@@ -31,7 +31,7 @@ pub use context::{HttpFilterContext, Request, Response};
 pub use factory::{FilterFactory, HttpFilterFactory, TcpFilterFactory, http_builtin, parse_filter_config, tcp_builtin};
 pub use filter::{Filter, FilterContext, FilterError, HttpFilter};
 pub use pipeline::FilterPipeline;
-pub use praxis_core::config::FilterEntry;
+pub use praxis_core::config::{FailureMode, FilterEntry};
 pub use registry::FilterRegistry;
 pub use tcp_filter::{TcpFilter, TcpFilterContext};
 

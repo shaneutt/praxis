@@ -40,6 +40,7 @@ fn build_unknown_filter_errors() {
         filter_type: "nonexistent".into(),
         config: serde_yaml::Value::Null,
         response_conditions: vec![],
+        failure_mode: Default::default(),
     }];
     match FilterPipeline::build(&mut entries, &registry) {
         Err(e) => assert!(
@@ -63,6 +64,7 @@ fn build_with_valid_filters() {
         filter_type: "router".into(),
         config: serde_yaml::Value::Mapping(router_config),
         response_conditions: vec![],
+        failure_mode: Default::default(),
     }];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
     assert_eq!(pipeline.len(), 1, "pipeline should contain one filter");
@@ -78,12 +80,14 @@ fn build_stops_on_first_error() {
             filter_type: "router".into(),
             config: serde_yaml::Value::Mapping(serde_yaml::Mapping::new()),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
             filter_type: "bad_filter".into(),
             config: serde_yaml::Value::Null,
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
     ];
     match FilterPipeline::build(&mut entries, &registry) {
@@ -745,6 +749,7 @@ fn errors_load_balancer_without_router() {
         filter_type: "load_balancer".into(),
         config: serde_yaml::from_str("clusters: []").unwrap(),
         response_conditions: vec![],
+        failure_mode: Default::default(),
     }];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
     let errors = pipeline.ordering_errors(&entries);
@@ -765,12 +770,14 @@ fn no_error_when_router_precedes_load_balancer() {
             filter_type: "router".into(),
             config: serde_yaml::from_str("routes:\n  - path_prefix: \"/\"\n    cluster: web").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
             filter_type: "load_balancer".into(),
             config: serde_yaml::from_str("clusters:\n  - name: web\n    endpoints: [\"10.0.0.1:80\"]").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
     ];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
@@ -790,12 +797,14 @@ fn errors_unconditional_static_response_followed_by_filters() {
             filter_type: "static_response".into(),
             config: serde_yaml::from_str("status: 200").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
             filter_type: "router".into(),
             config: serde_yaml::from_str("routes: []").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
     ];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
@@ -815,18 +824,21 @@ fn no_error_for_conditional_static_response() {
             filter_type: "static_response".into(),
             config: serde_yaml::from_str("status: 200").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
             filter_type: "router".into(),
             config: serde_yaml::from_str("routes:\n  - path_prefix: \"/\"\n    cluster: web").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
             filter_type: "load_balancer".into(),
             config: serde_yaml::from_str("clusters:\n  - name: web\n    endpoints: [\"10.0.0.1:80\"]").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
     ];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
@@ -846,18 +858,21 @@ fn errors_duplicate_router() {
             filter_type: "router".into(),
             config: serde_yaml::from_str("routes: []").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
             filter_type: "router".into(),
             config: serde_yaml::from_str("routes: []").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
             filter_type: "load_balancer".into(),
             config: serde_yaml::from_str("clusters: []").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
     ];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
@@ -877,18 +892,21 @@ fn errors_duplicate_load_balancer() {
             filter_type: "router".into(),
             config: serde_yaml::from_str("routes:\n  - path_prefix: \"/\"\n    cluster: web").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
             filter_type: "load_balancer".into(),
             config: serde_yaml::from_str("clusters:\n  - name: web\n    endpoints: [\"10.0.0.1:80\"]").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
             filter_type: "load_balancer".into(),
             config: serde_yaml::from_str("clusters:\n  - name: web\n    endpoints: [\"10.0.0.1:80\"]").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
     ];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
@@ -907,6 +925,7 @@ fn errors_conditional_security_filter() {
         filter_type: "ip_acl".into(),
         config: serde_yaml::from_str("allow: [\"10.0.0.0/8\"]").unwrap(),
         response_conditions: vec![],
+        failure_mode: Default::default(),
     }];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
     let errors = pipeline.ordering_errors(&entries);
@@ -926,6 +945,7 @@ fn no_error_for_unconditional_security_filter() {
         filter_type: "ip_acl".into(),
         config: serde_yaml::from_str("allow: [\"10.0.0.0/8\"]").unwrap(),
         response_conditions: vec![],
+        failure_mode: Default::default(),
     }];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
     let errors = pipeline.ordering_errors(&entries);
@@ -960,6 +980,7 @@ fn warns_router_without_lb() {
         filter_type: "router".into(),
         config: serde_yaml::from_str("routes: []").unwrap(),
         response_conditions: vec![],
+        failure_mode: Default::default(),
     }];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
     let warnings = pipeline.ordering_warnings();
@@ -980,6 +1001,7 @@ fn errors_misaligned_clusters() {
             filter_type: "router".into(),
             config: serde_yaml::from_str("routes:\n  - path_prefix: \"/\"\n    cluster: missing_cluster").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
@@ -987,6 +1009,7 @@ fn errors_misaligned_clusters() {
             config: serde_yaml::from_str("clusters:\n  - name: other_cluster\n    endpoints: [\"10.0.0.1:80\"]")
                 .unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
     ];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
@@ -1008,12 +1031,14 @@ fn no_error_for_aligned_clusters() {
             filter_type: "router".into(),
             config: serde_yaml::from_str("routes:\n  - path_prefix: \"/\"\n    cluster: backend").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
             filter_type: "load_balancer".into(),
             config: serde_yaml::from_str("clusters:\n  - name: backend\n    endpoints: [\"10.0.0.1:80\"]").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
     ];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
@@ -1033,12 +1058,14 @@ fn warns_all_routers_conditional() {
             filter_type: "router".into(),
             config: serde_yaml::from_str("routes: []").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
             filter_type: "load_balancer".into(),
             config: serde_yaml::from_str("clusters: []").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
     ];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
@@ -1060,12 +1087,14 @@ fn no_warning_when_unconditional_router_exists() {
             filter_type: "router".into(),
             config: serde_yaml::from_str("routes: []").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
             filter_type: "router".into(),
             config: serde_yaml::from_str("routes: []").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
     ];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
@@ -1205,12 +1234,14 @@ fn errors_duplicate_path_rewrite_filters() {
             filter_type: "path_rewrite".into(),
             config: serde_yaml::from_str("strip_prefix: \"/api\"").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
             filter_type: "path_rewrite".into(),
             config: serde_yaml::from_str("add_prefix: \"/v2\"").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
     ];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
@@ -1232,6 +1263,7 @@ fn errors_mixed_path_and_url_rewrite_filters() {
             filter_type: "path_rewrite".into(),
             config: serde_yaml::from_str("strip_prefix: \"/api\"").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
@@ -1241,6 +1273,7 @@ fn errors_mixed_path_and_url_rewrite_filters() {
             )
             .unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
     ];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
@@ -1261,6 +1294,7 @@ fn no_error_single_path_rewrite_filter() {
         filter_type: "path_rewrite".into(),
         config: serde_yaml::from_str("strip_prefix: \"/api\"").unwrap(),
         response_conditions: vec![],
+        failure_mode: Default::default(),
     }];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
     let errors = pipeline.ordering_errors(&entries);
@@ -1279,6 +1313,7 @@ fn no_error_duplicate_rewrite_with_allow_override() {
             filter_type: "path_rewrite".into(),
             config: serde_yaml::from_str("strip_prefix: \"/api\"").unwrap(),
             response_conditions: vec![],
+        failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
@@ -1288,6 +1323,7 @@ fn no_error_duplicate_rewrite_with_allow_override() {
             )
             .unwrap(),
             response_conditions: vec![],
+        failure_mode: Default::default(),
         },
     ];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
@@ -1307,6 +1343,7 @@ fn error_when_allow_override_on_first_not_last() {
             filter_type: "path_rewrite".into(),
             config: serde_yaml::from_str("strip_prefix: \"/api\"\nallow_rewrite_override: true").unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
         FilterEntry {
             conditions: vec![],
@@ -1316,6 +1353,7 @@ fn error_when_allow_override_on_first_not_last() {
             )
             .unwrap(),
             response_conditions: vec![],
+            failure_mode: Default::default(),
         },
     ];
     let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
@@ -1598,7 +1636,7 @@ impl HttpFilter for SwapHeaderFilter {
 fn make_pipeline(filters: Vec<Box<dyn HttpFilter>>) -> FilterPipeline {
     let filters: Vec<_> = filters
         .into_iter()
-        .map(|f| (AnyFilter::Http(f), vec![], vec![]))
+        .map(|f| (AnyFilter::Http(f), vec![], vec![], Default::default()))
         .collect();
     let body_capabilities = compute_body_capabilities(&filters);
 
@@ -1616,7 +1654,7 @@ fn make_pipeline_with_conditions(
 ) -> FilterPipeline {
     let filters: Vec<_> = filters
         .into_iter()
-        .map(|(f, c)| (AnyFilter::Http(f), c, vec![]))
+        .map(|(f, c)| (AnyFilter::Http(f), c, vec![], Default::default()))
         .collect();
     let body_capabilities = compute_body_capabilities(&filters);
 
@@ -1634,7 +1672,7 @@ fn make_pipeline_with_response_conditions(
 ) -> FilterPipeline {
     let filters: Vec<_> = filters
         .into_iter()
-        .map(|(f, rc)| (AnyFilter::Http(f), vec![], rc))
+        .map(|(f, rc)| (AnyFilter::Http(f), vec![], rc, Default::default()))
         .collect();
     let body_capabilities = compute_body_capabilities(&filters);
 

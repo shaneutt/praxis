@@ -63,7 +63,7 @@ pub(crate) fn merge_body_mode(current: &mut BodyMode, filter_mode: BodyMode) {
 pub(super) fn compute_body_capabilities(filters: &[ConditionalFilter]) -> BodyCapabilities {
     let mut caps = BodyCapabilities::default();
 
-    for (filter, _conditions, resp_conditions) in filters {
+    for (filter, _conditions, resp_conditions, _failure_mode) in filters {
         let http_filter = match filter {
             AnyFilter::Http(f) => f.as_ref(),
             AnyFilter::Tcp(_) => continue,

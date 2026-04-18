@@ -47,7 +47,7 @@ pub(super) fn check_unconditional_static_response(
 ) {
     for (i, name) in names.iter().enumerate() {
         if *name == "static_response" && i + 1 < names.len() {
-            let (_, conditions, _) = &filters[i];
+            let (_, conditions, _, _) = &filters[i];
             if conditions.is_empty() {
                 errors.push(format!(
                     "unconditional static_response at \
@@ -65,7 +65,7 @@ pub(super) fn check_unconditional_static_response(
 pub(super) fn check_conditional_security(names: &[&str], filters: &[ConditionalFilter], errors: &mut Vec<String>) {
     for (i, name) in names.iter().enumerate() {
         if SECURITY_FILTERS.contains(name) {
-            let (_, conditions, _) = &filters[i];
+            let (_, conditions, _, _) = &filters[i];
             if !conditions.is_empty() {
                 errors.push(format!(
                     "security filter '{name}' at position {i} has \
@@ -188,7 +188,7 @@ pub(super) fn check_all_routers_conditional(names: &[&str], filters: &[Condition
     }
 
     let all_conditional = router_indices.iter().all(|&i| {
-        let (_, conditions, _) = &filters[i];
+        let (_, conditions, _, _) = &filters[i];
         !conditions.is_empty()
     });
 
