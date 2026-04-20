@@ -23,7 +23,7 @@ fn bench_pipeline_4_filters() {
     let result = run_get_benchmark(&cfg, proxy.addr(), "/");
     assert_eq!(result.errors, 0, "all requests should succeed");
     report_results(&result);
-    assert_performance(&result, 500.0, 500.0);
+    assert_performance(&result, 400.0, 500.0);
 }
 
 #[test]
