@@ -4,17 +4,15 @@
 //! HTTP pipeline execution: request, response, and body filter phases.
 
 use bytes::Bytes;
-use tracing::{debug, trace, warn};
+use tracing::{debug, trace};
 
 use super::{
     FilterPipeline,
     http_utils::{
-        BodyFilterOutcome, accumulate_body_bytes, as_request_body_filter, as_response_body_filter,
+        BodyFilterOutcome, accumulate_body_bytes, as_request_body_filter, as_response_body_filter, check_failure_mode,
         dispatch_body_result, released_or_continue, run_response_filter, skip_by_response_conditions,
     },
 };
-use praxis_core::config::FailureMode;
-
 use crate::{
     FilterError, actions::FilterAction, any_filter::AnyFilter, condition::should_execute, context::HttpFilterContext,
 };
@@ -51,13 +49,7 @@ impl FilterPipeline {
                     return Ok(FilterAction::Reject(rejection));
                 },
                 Err(e) => {
-                    warn!(filter = http_filter.name(), error = %e, "filter error during request");
-                    match failure_mode {
-                        FailureMode::Open => {
-                            warn!(filter = http_filter.name(), "failure_mode=open, continuing after error");
-                        },
-                        FailureMode::Closed => return Err(e),
-                    }
+                    check_failure_mode(http_filter.name(), e, "request", *failure_mode)?;
                 },
             }
         }
