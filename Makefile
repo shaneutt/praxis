@@ -18,7 +18,7 @@ endif
 	lint fmt audit coverage coverage-check \
 	fuzz fuzz-build \
 	container container-run \
-	test-container-build test-container \
+	test-container test-container-run \
 	run-echo run-debug \
 	tools clean-tools \
 	help
@@ -62,12 +62,12 @@ container-run:
 # Test Container
 # -------------------------------------------------------------------
 
-test-container-build:
+test-container:
 	podman build --ignorefile Containerfile.test.dockerignore \
 		-t $(IMAGE)-test:$(VERSION) -f Containerfile.test . || \
 	docker build -t $(IMAGE)-test:$(VERSION) -f Containerfile.test .
 
-test-container: test-container-build
+test-container-run: test-container
 	podman run --rm -v $(CURDIR):/src -v praxis-test-cache:/cache \
 		$(IMAGE)-test:$(VERSION) 2>&1 || \
 	docker run --rm -v $(CURDIR):/src -v praxis-test-cache:/cache \
@@ -293,8 +293,8 @@ help:
 	@echo "Container:"
 	@echo "  container            build container image"
 	@echo "  container-run        run container in foreground (host network)"
-	@echo "  test-container-build build test container image"
-	@echo "  test-container       build and run test suite in container"
+	@echo "  test-container       build test container image"
+	@echo "  test-container-run   build and run test suite in container"
 	@echo ""
 	@echo "Binutils (target/praxis-binutils/):"
 	@echo "  tools                download all external CLI tools"

@@ -9,8 +9,8 @@
 # against the current working tree. A named volume at /cache persists
 # compiled dependencies and downloaded tools between runs.
 #
-# Build:  make test-container-build
-# Run:    make test-container
+# Build:  make test-container
+# Run:    make test-container-run
 
 FROM rust:1.94-alpine
 
