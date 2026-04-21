@@ -10,7 +10,7 @@ use std::time::Duration;
 use praxis_core::config::Config;
 use praxis_test_utils::{
     free_port, http_get, http_send, parse_body, parse_header, parse_status, simple_proxy_yaml, start_backend,
-    start_header_echo_backend, start_slow_backend, wait_for_http2,
+    start_header_echo_backend, start_header_echo_backend_with_shutdown, start_slow_backend, wait_for_http2,
 };
 
 use super::test_utils::{
@@ -288,7 +288,8 @@ fn rfc9110_upstream_within_timeout_succeeds() {
 /// [RFC 9110 Section 5.1]: https://datatracker.ietf.org/doc/html/rfc9110#section-5.1
 #[test]
 fn rfc9110_custom_header_forwarded_to_upstream() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();

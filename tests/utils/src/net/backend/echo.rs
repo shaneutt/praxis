@@ -89,6 +89,34 @@ pub fn start_uri_echo_backend_with_shutdown() -> BackendGuard {
 }
 
 /// Start a backend that echoes request headers as the
+/// response body (one per line), with a [`BackendGuard`]
+/// that shuts down the listener thread when dropped.
+///
+/// # Panics
+///
+/// Panics if the server fails to bind or accept connections.
+pub fn start_header_echo_backend_with_shutdown() -> BackendGuard {
+    spawn_tcp_server_with_shutdown(|mut stream| {
+        stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        let raw = read_until_headers_complete(&mut stream);
+
+        let headers: String = raw
+            .lines()
+            .skip(1)
+            .take_while(|l| !l.is_empty())
+            .fold(String::new(), |mut acc, line| {
+                if !acc.is_empty() {
+                    acc.push('\n');
+                }
+                acc.push_str(line);
+                acc
+            });
+
+        let _sent = write_http_response(&mut stream, &headers);
+    })
+}
+
+/// Start a backend that echoes request headers as the
 /// response body (one per line).
 ///
 /// # Panics

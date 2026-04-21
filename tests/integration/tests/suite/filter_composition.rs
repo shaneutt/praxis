@@ -6,8 +6,8 @@
 use praxis_core::config::Config;
 use praxis_filter::{FilterAction, FilterError, HttpFilter, HttpFilterContext};
 use praxis_test_utils::{
-    free_port, http_get, http_send, parse_body, parse_status, start_backend_with_shutdown, start_header_echo_backend,
-    start_proxy, start_proxy_with_registry,
+    free_port, http_get, http_send, parse_body, parse_status, start_backend_with_shutdown,
+    start_header_echo_backend_with_shutdown, start_proxy, start_proxy_with_registry,
 };
 
 // -----------------------------------------------------------------------------
@@ -16,7 +16,8 @@ use praxis_test_utils::{
 
 #[test]
 fn multiple_request_filters_all_execute_in_order() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -73,7 +74,8 @@ filter_chains:
 
 #[test]
 fn reject_filter_prevents_subsequent_filters_from_executing() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -229,7 +231,8 @@ filter_chains:
 
 #[test]
 fn request_id_and_headers_filters_compose() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -279,7 +282,8 @@ filter_chains:
 
 #[test]
 fn conditional_filter_does_not_affect_unconditional_filters() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(

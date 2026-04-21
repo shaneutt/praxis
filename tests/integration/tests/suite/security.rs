@@ -5,7 +5,7 @@
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    free_port, http_send, parse_body, parse_header, simple_proxy_yaml, start_header_echo_backend,
+    free_port, http_send, parse_body, parse_header, simple_proxy_yaml, start_header_echo_backend_with_shutdown,
     start_hop_by_hop_response_backend, start_proxy,
 };
 
@@ -15,7 +15,8 @@ use praxis_test_utils::{
 
 #[test]
 fn hop_by_hop_headers_stripped_before_upstream() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -54,7 +55,8 @@ fn hop_by_hop_headers_stripped_before_upstream() {
 
 #[test]
 fn hop_by_hop_preserves_all_end_to_end_headers() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -77,7 +79,8 @@ fn hop_by_hop_preserves_all_end_to_end_headers() {
 
 #[test]
 fn forwarded_headers_injected_upstream() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
     let yaml = format!(
         r#"
@@ -127,7 +130,8 @@ filter_chains:
 
 #[test]
 fn forwarded_headers_untrusted_overwrites_spoofed_xff() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
     let yaml = format!(
         r#"

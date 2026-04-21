@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use praxis_core::config::Config;
 use praxis_test_utils::{
     free_port, http_get, http_send, json_post, load_example_config, parse_body, parse_status, patch_yaml,
-    start_backend_with_shutdown, start_header_echo_backend, start_proxy, wait_for_tcp,
+    start_backend_with_shutdown, start_header_echo_backend_with_shutdown, start_proxy, wait_for_tcp,
 };
 
 // -----------------------------------------------------------------------------
@@ -90,7 +90,8 @@ fn ai_inference_body_based_routing_falls_through_to_default() {
 
 #[test]
 fn multi_field_extraction_extracts_both_fields() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
 
     let config = load_example_config(
@@ -162,7 +163,8 @@ fn multi_field_extraction_routes_by_model() {
 
 #[test]
 fn conditional_field_extraction_fires_on_v1_path() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
 
     let config = load_example_config(
@@ -193,7 +195,8 @@ fn conditional_field_extraction_fires_on_v1_path() {
 
 #[test]
 fn conditional_field_extraction_skips_on_non_v1_path() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
 
     let config = load_example_config(

@@ -7,7 +7,7 @@
 use praxis_core::config::Config;
 use praxis_test_utils::{
     free_port, http_send, parse_body, parse_header, parse_status, simple_proxy_yaml, start_backend_with_shutdown,
-    start_header_echo_backend, start_proxy,
+    start_header_echo_backend_with_shutdown, start_proxy,
 };
 
 // -----------------------------------------------------------------------------
@@ -16,7 +16,8 @@ use praxis_test_utils::{
 
 #[test]
 fn connection_header_declared_headers_stripped_from_upstream() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -71,7 +72,8 @@ fn oversized_header_value_rejected() {
 
 #[test]
 fn multiple_connection_nominated_headers_all_stripped() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -104,7 +106,8 @@ fn multiple_connection_nominated_headers_all_stripped() {
 
 #[test]
 fn hop_by_hop_upgrade_header_stripped() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -132,7 +135,8 @@ fn hop_by_hop_upgrade_header_stripped() {
 
 #[test]
 fn keep_alive_header_stripped_from_upstream() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -160,7 +164,8 @@ fn keep_alive_header_stripped_from_upstream() {
 
 #[test]
 fn proxy_authorization_stripped_from_upstream() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -187,7 +192,8 @@ fn proxy_authorization_stripped_from_upstream() {
 
 #[test]
 fn forwarded_headers_filter_overwrites_spoofed_xff() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -236,7 +242,8 @@ filter_chains:
 
 #[test]
 fn response_hop_by_hop_headers_stripped() {
-    let backend_port = start_header_echo_backend();
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
