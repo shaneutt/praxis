@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -13,9 +13,12 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
 
 #[test]
 fn round_robin() {
-    let port_a = start_backend("a");
-    let port_b = start_backend("b");
-    let port_c = start_backend("c");
+    let port_a_guard = start_backend_with_shutdown("a");
+    let port_a = port_a_guard.port();
+    let port_b_guard = start_backend_with_shutdown("b");
+    let port_b = port_b_guard.port();
+    let port_c_guard = start_backend_with_shutdown("c");
+    let port_c = port_c_guard.port();
     let proxy_port = free_port();
     let config = super::load_example_config(
         "traffic-management/round-robin.yaml",

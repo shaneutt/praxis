@@ -4,7 +4,9 @@
 //! Integration tests for the `guardrails` filter.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, http_send, parse_body, parse_status, start_backend, start_proxy};
+use praxis_test_utils::{
+    free_port, http_get, http_send, parse_body, parse_status, start_backend_with_shutdown, start_proxy,
+};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,7 +14,8 @@ use praxis_test_utils::{free_port, http_get, http_send, parse_body, parse_status
 
 #[test]
 fn header_contains_blocks_matching_request() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = guardrails_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -32,7 +35,8 @@ fn header_contains_blocks_matching_request() {
 
 #[test]
 fn clean_request_passes_through() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = guardrails_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -45,7 +49,8 @@ fn clean_request_passes_through() {
 
 #[test]
 fn body_contains_blocks_matching_content() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = guardrails_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -64,7 +69,8 @@ fn body_contains_blocks_matching_content() {
 
 #[test]
 fn body_without_match_passes_through() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = guardrails_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -83,7 +89,8 @@ fn body_without_match_passes_through() {
 
 #[test]
 fn header_pattern_blocks_regex_match() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = header_pattern_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -98,7 +105,8 @@ fn header_pattern_blocks_regex_match() {
 
 #[test]
 fn header_only_rules_skip_body_inspection() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -144,7 +152,8 @@ filter_chains:
 
 #[test]
 fn multiple_rules_any_match_rejects() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = guardrails_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -163,7 +172,8 @@ fn multiple_rules_any_match_rejects() {
 
 #[test]
 fn negated_header_rejects_missing_header() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = negate_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -178,7 +188,8 @@ fn negated_header_rejects_missing_header() {
 
 #[test]
 fn negated_header_rejects_non_matching_value() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = negate_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -197,7 +208,8 @@ fn negated_header_rejects_non_matching_value() {
 
 #[test]
 fn negated_header_allows_matching_value() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = negate_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -221,7 +233,8 @@ fn negated_header_allows_matching_value() {
 
 #[test]
 fn negated_body_rejects_non_matching_content() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = negate_body_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -244,7 +257,8 @@ fn negated_body_rejects_non_matching_content() {
 
 #[test]
 fn negated_body_allows_matching_content() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = negate_body_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -267,7 +281,8 @@ fn negated_body_allows_matching_content() {
 
 #[test]
 fn mixed_positive_and_negated_rules() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = mixed_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();

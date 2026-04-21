@@ -8,9 +8,9 @@ use std::sync::Arc;
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    TestCertificates, free_port, http_get, https_get, start_backend, start_full_proxy, start_mtls_backend, start_proxy,
-    start_tcp_echo_backend, start_tls_backend, start_tls_proxy, start_tls_proxy_no_wait, tls_connection_rejected,
-    tls_send_recv, wait_for_https, wait_for_tls,
+    TestCertificates, free_port, http_get, https_get, start_backend_with_shutdown, start_full_proxy,
+    start_mtls_backend, start_proxy, start_tcp_echo_backend, start_tls_backend, start_tls_proxy,
+    start_tls_proxy_no_wait, tls_connection_rejected, tls_send_recv, wait_for_https, wait_for_tls,
 };
 
 // -----------------------------------------------------------------------------
@@ -22,7 +22,8 @@ fn listener_tls_termination_end_to_end() {
     let certs = TestCertificates::generate();
     let client_config = certs.client_config();
 
-    let backend_port = start_backend("tls-terminated");
+    let backend_port_guard = start_backend_with_shutdown("tls-terminated");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -75,8 +76,10 @@ fn tls_listener_routing_works() {
     let certs = TestCertificates::generate();
     let client_config = certs.client_config();
 
-    let api_port = start_backend("api-response");
-    let web_port = start_backend("web-response");
+    let api_port_guard = start_backend_with_shutdown("api-response");
+    let api_port = api_port_guard.port();
+    let web_port_guard = start_backend_with_shutdown("web-response");
+    let web_port = web_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -173,7 +176,8 @@ fn sni_fallback_to_host_header() {
     let certs = TestCertificates::generate();
     let client_config = certs.client_config();
 
-    let backend_port = start_backend("sni-fallback-ok");
+    let backend_port_guard = start_backend_with_shutdown("sni-fallback-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -314,7 +318,8 @@ fn listener_mtls_require_valid_client_cert_succeeds() {
     let client_cert = certs.generate_client_cert();
     let client_config = certs.client_config_with_cert(&client_cert);
 
-    let backend_port = start_backend("mtls-require-ok");
+    let backend_port_guard = start_backend_with_shutdown("mtls-require-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -371,7 +376,8 @@ fn listener_mtls_require_no_client_cert_fails() {
     let mtls_client_config = certs.client_config_with_cert(&client_cert);
     let no_cert_config = certs.client_config();
 
-    let backend_port = start_backend("mtls-no-cert");
+    let backend_port_guard = start_backend_with_shutdown("mtls-no-cert");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -425,7 +431,8 @@ fn listener_mtls_request_mode_without_cert_succeeds() {
     let certs = TestCertificates::generate();
     let no_cert_config = certs.client_config();
 
-    let backend_port = start_backend("mtls-request-ok");
+    let backend_port_guard = start_backend_with_shutdown("mtls-request-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -875,7 +882,8 @@ fn multi_cert_config_parses_and_serves_with_primary_cert() {
     let certs = TestCertificates::generate();
     let client_config = certs.client_config();
 
-    let backend_port = start_backend("multi-cert-ok");
+    let backend_port_guard = start_backend_with_shutdown("multi-cert-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -958,7 +966,8 @@ fn listener_min_version_tls13_rejects_tls12() {
     let certs = TestCertificates::generate();
     let tls13_client = certs.client_config();
 
-    let backend_port = start_backend("tls13-only-ok");
+    let backend_port_guard = start_backend_with_shutdown("tls13-only-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -1132,7 +1141,8 @@ fn multi_cert_sni_selects_correct_certificate() {
     let alpha_certs = TestCertificates::generate_for_san("alpha.localhost");
     let beta_certs = TestCertificates::generate_for_san("beta.localhost");
 
-    let backend_port = start_backend("sni-select-ok");
+    let backend_port_guard = start_backend_with_shutdown("sni-select-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -1199,7 +1209,8 @@ fn listener_min_version_tls12_accepts_both_versions() {
     let certs = TestCertificates::generate();
     let tls13_client = certs.client_config();
 
-    let backend_port = start_backend("tls12-min-ok");
+    let backend_port_guard = start_backend_with_shutdown("tls12-min-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -1373,7 +1384,8 @@ fn multi_cert_sni_returns_correct_certificate_subject() {
     let beta_certs = TestCertificates::generate_for_san("beta.test");
     let default_certs = TestCertificates::generate_for_san("default.test");
 
-    let backend_port = start_backend("sni-subject-ok");
+    let backend_port_guard = start_backend_with_shutdown("sni-subject-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -1456,7 +1468,8 @@ fn multi_cert_unknown_sni_returns_default_certificate() {
     let alpha_certs = TestCertificates::generate_for_san("alpha.test");
     let default_certs = TestCertificates::generate_for_san("default.test");
 
-    let backend_port = start_backend("fallback-ok");
+    let backend_port_guard = start_backend_with_shutdown("fallback-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -1531,7 +1544,8 @@ fn mtls_require_rejects_client_cert_from_wrong_ca() {
 
     let wrong_ca_client_config = build_cross_ca_client_config(&server_certs, &wrong_ca_certs, &wrong_client_cert);
 
-    let backend_port = start_backend("wrong-ca-should-not-reach");
+    let backend_port_guard = start_backend_with_shutdown("wrong-ca-should-not-reach");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -1587,7 +1601,8 @@ fn multi_cert_sni_with_mtls_require() {
     let client_cert = alpha_certs.generate_client_cert();
     let client_config = build_sni_mtls_client_config(&alpha_certs, &beta_certs, &client_cert);
 
-    let backend_port = start_backend("sni-mtls-ok");
+    let backend_port_guard = start_backend_with_shutdown("sni-mtls-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -1645,7 +1660,8 @@ fn multi_cert_sni_with_tls13_only() {
     let alpha_certs = TestCertificates::generate_for_san("alpha.tls13");
     let beta_certs = TestCertificates::generate_for_san("beta.tls13");
 
-    let backend_port = start_backend("sni-tls13-ok");
+    let backend_port_guard = start_backend_with_shutdown("sni-tls13-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -1709,7 +1725,8 @@ fn mtls_require_with_tls13_only() {
     let client_cert = certs.generate_client_cert();
     let client_config = certs.client_config_with_cert(&client_cert);
 
-    let backend_port = start_backend("mtls-tls13-ok");
+    let backend_port_guard = start_backend_with_shutdown("mtls-tls13-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -1765,7 +1782,8 @@ fn hot_reload_serves_rotated_certificate() {
     let original = TestCertificates::generate();
     let client_config = original.client_config();
 
-    let backend_port = start_backend("hot-reload-ok");
+    let backend_port_guard = start_backend_with_shutdown("hot-reload-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let cert_dir = tempfile::TempDir::new().unwrap();
@@ -1841,7 +1859,8 @@ fn hot_reload_invalid_cert_keeps_old() {
     let original = TestCertificates::generate();
     let client_config = original.client_config();
 
-    let backend_port = start_backend("hot-reload-invalid-ok");
+    let backend_port_guard = start_backend_with_shutdown("hot-reload-invalid-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let cert_dir = tempfile::TempDir::new().unwrap();

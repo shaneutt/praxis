@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use praxis_core::config::Config;
 use praxis_test_utils::{
     free_port, http_get, http_send, json_post, load_example_config, parse_body, parse_status, patch_yaml,
-    start_backend, start_header_echo_backend, start_proxy, wait_for_tcp,
+    start_backend_with_shutdown, start_header_echo_backend, start_proxy, wait_for_tcp,
 };
 
 // -----------------------------------------------------------------------------
@@ -17,9 +17,12 @@ use praxis_test_utils::{
 
 #[test]
 fn ai_inference_body_based_routing_matches_model() {
-    let mistral_port = start_backend("mistral-response");
-    let granite_port = start_backend("granite-response");
-    let default_port = start_backend("default-response");
+    let mistral_port_guard = start_backend_with_shutdown("mistral-response");
+    let mistral_port = mistral_port_guard.port();
+    let granite_port_guard = start_backend_with_shutdown("granite-response");
+    let granite_port = granite_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-response");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let config = load_example_config(
@@ -52,9 +55,12 @@ fn ai_inference_body_based_routing_matches_model() {
 
 #[test]
 fn ai_inference_body_based_routing_falls_through_to_default() {
-    let mistral_port = start_backend("mistral-response");
-    let granite_port = start_backend("granite-response");
-    let default_port = start_backend("default-response");
+    let mistral_port_guard = start_backend_with_shutdown("mistral-response");
+    let mistral_port = mistral_port_guard.port();
+    let granite_port_guard = start_backend_with_shutdown("granite-response");
+    let granite_port = granite_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-response");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let config = load_example_config(
@@ -121,8 +127,10 @@ fn multi_field_extraction_extracts_both_fields() {
 
 #[test]
 fn multi_field_extraction_routes_by_model() {
-    let claude_port = start_backend("claude-backend");
-    let default_port = start_backend("default-backend");
+    let claude_port_guard = start_backend_with_shutdown("claude-backend");
+    let claude_port = claude_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-backend");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let config = load_example_config(
@@ -213,9 +221,12 @@ fn conditional_field_extraction_skips_on_non_v1_path() {
 
 #[test]
 fn field_extraction_access_control_routes_acme() {
-    let acme_port = start_backend("acme-backend");
-    let globex_port = start_backend("globex-backend");
-    let default_port = start_backend("default-backend");
+    let acme_port_guard = start_backend_with_shutdown("acme-backend");
+    let acme_port = acme_port_guard.port();
+    let globex_port_guard = start_backend_with_shutdown("globex-backend");
+    let globex_port = globex_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-backend");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let config = load_example_config(
@@ -244,9 +255,12 @@ fn field_extraction_access_control_routes_acme() {
 
 #[test]
 fn field_extraction_access_control_routes_globex() {
-    let acme_port = start_backend("acme-backend");
-    let globex_port = start_backend("globex-backend");
-    let default_port = start_backend("default-backend");
+    let acme_port_guard = start_backend_with_shutdown("acme-backend");
+    let acme_port = acme_port_guard.port();
+    let globex_port_guard = start_backend_with_shutdown("globex-backend");
+    let globex_port = globex_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-backend");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let config = load_example_config(
@@ -275,9 +289,12 @@ fn field_extraction_access_control_routes_globex() {
 
 #[test]
 fn field_extraction_access_control_unknown_tenant_to_default() {
-    let acme_port = start_backend("acme-backend");
-    let globex_port = start_backend("globex-backend");
-    let default_port = start_backend("default-backend");
+    let acme_port_guard = start_backend_with_shutdown("acme-backend");
+    let acme_port = acme_port_guard.port();
+    let globex_port_guard = start_backend_with_shutdown("globex-backend");
+    let globex_port = globex_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-backend");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let config = load_example_config(
@@ -306,7 +323,8 @@ fn field_extraction_access_control_unknown_tenant_to_default() {
 
 #[test]
 fn body_size_limit_allows_small_body() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let config = load_example_config(
@@ -325,7 +343,8 @@ fn body_size_limit_allows_small_body() {
 
 #[test]
 fn body_size_limit_rejects_oversized_body() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let config = load_example_config(
@@ -342,8 +361,10 @@ fn body_size_limit_rejects_oversized_body() {
 
 #[test]
 fn multi_listener_body_pipeline_passthrough() {
-    let default_port = start_backend("passthrough-ok");
-    let claude_port = start_backend("claude-response");
+    let default_port_guard = start_backend_with_shutdown("passthrough-ok");
+    let default_port = default_port_guard.port();
+    let claude_port_guard = start_backend_with_shutdown("claude-response");
+    let claude_port = claude_port_guard.port();
     let proxy_passthrough = free_port();
     let proxy_streambuf = free_port();
     let proxy_buffered = free_port();
@@ -372,8 +393,10 @@ fn multi_listener_body_pipeline_passthrough() {
 
 #[test]
 fn multi_listener_body_pipeline_stream_buffer_routes() {
-    let default_port = start_backend("default-response");
-    let claude_port = start_backend("claude-response");
+    let default_port_guard = start_backend_with_shutdown("default-response");
+    let default_port = default_port_guard.port();
+    let claude_port_guard = start_backend_with_shutdown("claude-response");
+    let claude_port = claude_port_guard.port();
     let proxy_streambuf = free_port();
     let proxy_buffered = free_port();
     let proxy_passthrough = free_port();

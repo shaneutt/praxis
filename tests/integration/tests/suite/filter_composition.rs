@@ -6,8 +6,8 @@
 use praxis_core::config::Config;
 use praxis_filter::{FilterAction, FilterError, HttpFilter, HttpFilterContext};
 use praxis_test_utils::{
-    free_port, http_get, http_send, parse_body, parse_status, start_backend, start_header_echo_backend, start_proxy,
-    start_proxy_with_registry,
+    free_port, http_get, http_send, parse_body, parse_status, start_backend_with_shutdown, start_header_echo_backend,
+    start_proxy, start_proxy_with_registry,
 };
 
 // -----------------------------------------------------------------------------
@@ -121,7 +121,8 @@ filter_chains:
 
 #[test]
 fn multiple_response_filters_compose_headers() {
-    let backend_port = start_backend("composed");
+    let backend_port_guard = start_backend_with_shutdown("composed");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -179,7 +180,8 @@ filter_chains:
 
 #[test]
 fn access_log_and_headers_filters_compose() {
-    let backend_port = start_backend("composed ok");
+    let backend_port_guard = start_backend_with_shutdown("composed ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(

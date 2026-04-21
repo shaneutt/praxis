@@ -4,7 +4,9 @@
 //! Integration tests for the `tcp_access_log` filter.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, http_send, parse_body, parse_status, start_backend, start_proxy};
+use praxis_test_utils::{
+    free_port, http_get, http_send, parse_body, parse_status, start_backend_with_shutdown, start_proxy,
+};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,7 +14,8 @@ use praxis_test_utils::{free_port, http_get, http_send, parse_body, parse_status
 
 #[test]
 fn tcp_access_log_does_not_alter_response() {
-    let backend_port = start_backend("hello from backend");
+    let backend_port_guard = start_backend_with_shutdown("hello from backend");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -51,7 +54,8 @@ filter_chains:
 
 #[test]
 fn tcp_access_log_handles_multiple_requests() {
-    let backend_port = start_backend("repeated");
+    let backend_port_guard = start_backend_with_shutdown("repeated");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -89,7 +93,8 @@ filter_chains:
 
 #[test]
 fn tcp_access_log_combined_with_headers_filter() {
-    let backend_port = start_backend("combined");
+    let backend_port_guard = start_backend_with_shutdown("combined");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -133,8 +138,10 @@ filter_chains:
 
 #[test]
 fn tcp_access_log_does_not_interfere_with_routing() {
-    let api_port = start_backend("api");
-    let web_port = start_backend("web");
+    let api_port_guard = start_backend_with_shutdown("api");
+    let api_port = api_port_guard.port();
+    let web_port_guard = start_backend_with_shutdown("web");
+    let web_port = web_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -179,7 +186,8 @@ filter_chains:
 
 #[test]
 fn tcp_access_log_per_listener_isolation() {
-    let backend_port = start_backend("isolated");
+    let backend_port_guard = start_backend_with_shutdown("isolated");
+    let backend_port = backend_port_guard.port();
     let port_a = free_port();
     let port_b = free_port();
 
@@ -225,7 +233,8 @@ filter_chains:
 
 #[test]
 fn tcp_access_log_preserves_404_on_no_route() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(

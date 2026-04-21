@@ -4,7 +4,7 @@
 //! Tests for multi-listener behavior.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy, wait_for_tcp};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy, wait_for_tcp};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,8 +12,10 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_proxy, wait_fo
 
 #[test]
 fn multi_listener() {
-    let api_port = start_backend("api");
-    let web_port = start_backend("web");
+    let api_port_guard = start_backend_with_shutdown("api");
+    let api_port = api_port_guard.port();
+    let web_port_guard = start_backend_with_shutdown("web");
+    let web_port = web_port_guard.port();
     let http_port = free_port();
     let admin_port = free_port();
 

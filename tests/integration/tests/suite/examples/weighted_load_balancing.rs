@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -13,8 +13,10 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
 
 #[test]
 fn weighted_load_balancing() {
-    let port_light = start_backend("light");
-    let port_heavy = start_backend("heavy");
+    let port_light_guard = start_backend_with_shutdown("light");
+    let port_light = port_light_guard.port();
+    let port_heavy_guard = start_backend_with_shutdown("heavy");
+    let port_heavy = port_heavy_guard.port();
     let proxy_port = free_port();
     let config = super::load_example_config(
         "traffic-management/weighted-load-balancing.yaml",

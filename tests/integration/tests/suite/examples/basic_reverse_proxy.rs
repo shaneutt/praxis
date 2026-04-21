@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use praxis_test_utils::{free_port, http_get, start_backend};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -13,7 +13,8 @@ use praxis_test_utils::{free_port, http_get, start_backend};
 
 #[test]
 fn basic_reverse_proxy() {
-    let backend_port = start_backend("hello");
+    let backend_port_guard = start_backend_with_shutdown("hello");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = super::load_example_config(
         "traffic-management/basic-reverse-proxy.yaml",

@@ -6,7 +6,8 @@
 use praxis_core::config::Config;
 use praxis_protocol::http::load_http_handler;
 use praxis_test_utils::{
-    build_pipeline, free_port, http_get, http_send, parse_status, start_backend, start_proxy, wait_for_tcp,
+    build_pipeline, free_port, http_get, http_send, parse_status, start_backend_with_shutdown, start_proxy,
+    wait_for_tcp,
 };
 
 // -----------------------------------------------------------------------------
@@ -15,7 +16,8 @@ use praxis_test_utils::{
 
 #[test]
 fn multiple_listeners() {
-    let backend_port = start_backend("multi listener");
+    let backend_port_guard = start_backend_with_shutdown("multi listener");
+    let backend_port = backend_port_guard.port();
     let port_a = free_port();
     let port_b = free_port();
     let port_c = free_port();
@@ -74,7 +76,8 @@ filter_chains:
 
 #[test]
 fn per_listener_pipelines() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let port_a = free_port();
     let port_b = free_port();
 

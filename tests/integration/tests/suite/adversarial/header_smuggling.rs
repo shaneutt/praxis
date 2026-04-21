@@ -6,7 +6,7 @@
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    free_port, http_send, parse_body, parse_header, parse_status, simple_proxy_yaml, start_backend,
+    free_port, http_send, parse_body, parse_header, parse_status, simple_proxy_yaml, start_backend_with_shutdown,
     start_header_echo_backend, start_proxy,
 };
 
@@ -44,7 +44,8 @@ fn connection_header_declared_headers_stripped_from_upstream() {
 
 #[test]
 fn oversized_header_value_rejected() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();

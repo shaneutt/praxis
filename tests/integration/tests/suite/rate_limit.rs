@@ -4,7 +4,9 @@
 //! Integration tests for the `rate_limit` filter.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, http_send, parse_header, parse_status, start_backend, start_proxy};
+use praxis_test_utils::{
+    free_port, http_get, http_send, parse_header, parse_status, start_backend_with_shutdown, start_proxy,
+};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,7 +14,8 @@ use praxis_test_utils::{free_port, http_get, http_send, parse_header, parse_stat
 
 #[test]
 fn rate_limit_allows_within_burst() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 1.0, 6);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -31,7 +34,8 @@ fn rate_limit_allows_within_burst() {
 
 #[test]
 fn rate_limit_rejects_over_burst() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 1.0, 4);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -52,7 +56,8 @@ fn rate_limit_rejects_over_burst() {
 
 #[test]
 fn rate_limit_global_shared() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 1.0, 4);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -76,7 +81,8 @@ fn rate_limit_global_shared() {
 
 #[test]
 fn rate_limit_response_headers_present() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 1.0, 10);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -101,7 +107,8 @@ fn rate_limit_response_headers_present() {
 
 #[test]
 fn rate_limit_429_includes_rate_limit_headers() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 1.0, 2);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -128,7 +135,8 @@ fn rate_limit_429_includes_rate_limit_headers() {
 
 #[test]
 fn rate_limit_with_conditions() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -176,7 +184,8 @@ filter_chains:
 
 #[test]
 fn rate_limit_per_ip_isolates_clients() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "per_ip", 1.0, 3);
     let config = Config::from_yaml(&yaml).unwrap();

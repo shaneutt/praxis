@@ -4,7 +4,7 @@
 //! Integration tests for the `cors` filter.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_send, parse_header, parse_status, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_send, parse_header, parse_status, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,7 +12,8 @@ use praxis_test_utils::{free_port, http_send, parse_header, parse_status, start_
 
 #[test]
 fn cors_simple_request_allowed_origin() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port, &default_cors_block());
     let config = Config::from_yaml(&yaml).unwrap();
@@ -37,7 +38,8 @@ fn cors_simple_request_allowed_origin() {
 
 #[test]
 fn cors_simple_request_disallowed_origin() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port, &default_cors_block());
     let config = Config::from_yaml(&yaml).unwrap();
@@ -56,7 +58,8 @@ fn cors_simple_request_disallowed_origin() {
 
 #[test]
 fn cors_preflight_allowed() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port, &default_cors_block());
     let config = Config::from_yaml(&yaml).unwrap();
@@ -84,7 +87,8 @@ fn cors_preflight_allowed() {
 
 #[test]
 fn cors_preflight_disallowed_origin_omit() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port, &default_cors_block());
     let config = Config::from_yaml(&yaml).unwrap();
@@ -103,7 +107,8 @@ fn cors_preflight_disallowed_origin_omit() {
 
 #[test]
 fn cors_preflight_disallowed_origin_reject() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let cors_block = r#"
       - filter: cors
@@ -126,7 +131,8 @@ fn cors_preflight_disallowed_origin_reject() {
 
 #[test]
 fn cors_options_without_request_method_is_not_preflight() {
-    let backend_port = start_backend("options-ok");
+    let backend_port_guard = start_backend_with_shutdown("options-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port, &default_cors_block());
     let config = Config::from_yaml(&yaml).unwrap();
@@ -145,7 +151,8 @@ fn cors_options_without_request_method_is_not_preflight() {
 
 #[test]
 fn cors_vary_origin_on_all_responses() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port, &default_cors_block());
     let config = Config::from_yaml(&yaml).unwrap();
@@ -165,7 +172,8 @@ fn cors_vary_origin_on_all_responses() {
 
 #[test]
 fn cors_wildcard_origin_no_vary() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let cors_block = r#"
       - filter: cors
@@ -196,7 +204,8 @@ fn cors_wildcard_origin_no_vary() {
 
 #[test]
 fn cors_credentials_reflects_exact_origin() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let cors_block = r#"
       - filter: cors
@@ -228,7 +237,8 @@ fn cors_credentials_reflects_exact_origin() {
 
 #[test]
 fn cors_expose_headers_present() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port, &default_cors_block());
     let config = Config::from_yaml(&yaml).unwrap();
@@ -247,7 +257,8 @@ fn cors_expose_headers_present() {
 
 #[test]
 fn cors_null_origin_rejected_by_default() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port, &default_cors_block());
     let config = Config::from_yaml(&yaml).unwrap();
@@ -265,7 +276,8 @@ fn cors_null_origin_rejected_by_default() {
 
 #[test]
 fn cors_null_origin_allowed_with_opt_in() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let cors_block = r#"
       - filter: cors
@@ -292,7 +304,8 @@ fn cors_null_origin_allowed_with_opt_in() {
 
 #[test]
 fn cors_with_other_filters() {
-    let backend_port = start_backend("composed");
+    let backend_port_guard = start_backend_with_shutdown("composed");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = format!(
         r#"
@@ -347,7 +360,8 @@ filter_chains:
 
 #[test]
 fn cors_wildcard_subdomain_through_proxy() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port, &default_cors_block());
     let config = Config::from_yaml(&yaml).unwrap();
@@ -367,7 +381,8 @@ fn cors_wildcard_subdomain_through_proxy() {
 
 #[test]
 fn cors_preflight_disallowed_method_rejected() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port, &default_cors_block());
     let config = Config::from_yaml(&yaml).unwrap();
@@ -390,7 +405,8 @@ fn cors_preflight_disallowed_method_rejected() {
 
 #[test]
 fn cors_preflight_disallowed_headers_rejected() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port, &default_cors_block());
     let config = Config::from_yaml(&yaml).unwrap();

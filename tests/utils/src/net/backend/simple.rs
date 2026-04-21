@@ -14,7 +14,7 @@ use praxis_core::config::{
     Listener, ProtocolKind, RuntimeConfig,
 };
 
-use super::specialized::{read_until_headers_complete, spawn_tcp_server};
+use super::specialized::{BackendGuard, read_until_headers_complete, spawn_tcp_server, spawn_tcp_server_with_shutdown};
 
 // -----------------------------------------------------------------------------
 // Backend
@@ -70,6 +70,39 @@ impl Backend {
         let headers = self.headers;
 
         spawn_tcp_server(move |mut stream| {
+            stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let _headers = read_until_headers_complete(&mut stream);
+
+            let mut resp = format!(
+                "HTTP/1.1 {status} {reason}\r\n\
+                 Content-Length: {}\r\n\
+                 Connection: close\r\n\
+                 Server: praxis-test-backend\r\n",
+                body.len()
+            );
+            for (name, value) in &headers {
+                use std::fmt::Write;
+                let _written = write!(resp, "{name}: {value}\r\n");
+            }
+            resp.push_str("\r\n");
+            resp.push_str(&body);
+            let _sent = stream.write_all(resp.as_bytes());
+        })
+    }
+
+    /// Start the backend and return a [`BackendGuard`] that
+    /// shuts down the listener thread when dropped.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the server fails to bind or accept connections.
+    pub fn start_with_shutdown(self) -> BackendGuard {
+        let status = self.status;
+        let reason = reason_phrase(status);
+        let body = self.body;
+        let headers = self.headers;
+
+        spawn_tcp_server_with_shutdown(move |mut stream| {
             stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
             let _headers = read_until_headers_complete(&mut stream);
 
@@ -206,6 +239,13 @@ fn handle_v6_connection(mut stream: TcpStream, body: &str) {
 /// Start a mock HTTP backend returning a fixed body.
 pub fn start_backend(body: &str) -> u16 {
     Backend::fixed(body).start()
+}
+
+/// Start a mock HTTP backend returning a fixed body,
+/// with a [`BackendGuard`] that shuts down the listener
+/// thread when dropped.
+pub fn start_backend_with_shutdown(body: &str) -> BackendGuard {
+    Backend::fixed(body).start_with_shutdown()
 }
 
 // -----------------------------------------------------------------------------

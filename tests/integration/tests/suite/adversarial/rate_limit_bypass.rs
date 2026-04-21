@@ -5,7 +5,7 @@
 //! via spoofed headers.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, http_send, parse_status, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get, http_send, parse_status, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -13,7 +13,8 @@ use praxis_test_utils::{free_port, http_get, http_send, parse_status, start_back
 
 #[test]
 fn spoofed_xff_does_not_bypass_per_ip_rate_limit() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "per_ip", 1.0, 3);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -38,7 +39,8 @@ fn spoofed_xff_does_not_bypass_per_ip_rate_limit() {
 
 #[test]
 fn spoofed_x_real_ip_does_not_bypass_per_ip_rate_limit() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "per_ip", 1.0, 3);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -63,7 +65,8 @@ fn spoofed_x_real_ip_does_not_bypass_per_ip_rate_limit() {
 
 #[test]
 fn spoofed_forwarded_header_does_not_bypass_per_ip_rate_limit() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "per_ip", 1.0, 3);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -88,7 +91,8 @@ fn spoofed_forwarded_header_does_not_bypass_per_ip_rate_limit() {
 
 #[test]
 fn global_rate_limit_unaffected_by_xff() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 1.0, 3);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -113,7 +117,8 @@ fn global_rate_limit_unaffected_by_xff() {
 
 #[test]
 fn varying_xff_values_still_rate_limited() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "per_ip", 1.0, 3);
     let config = Config::from_yaml(&yaml).unwrap();

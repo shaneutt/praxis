@@ -5,7 +5,9 @@
 
 use std::collections::HashMap;
 
-use praxis_test_utils::{free_port, http_send, parse_body, parse_header, parse_status, start_backend, start_proxy};
+use praxis_test_utils::{
+    free_port, http_send, parse_body, parse_header, parse_status, start_backend_with_shutdown, start_proxy,
+};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -13,7 +15,8 @@ use praxis_test_utils::{free_port, http_send, parse_body, parse_header, parse_st
 
 #[test]
 fn access_logging() {
-    let backend_port = start_backend("logged");
+    let backend_port_guard = start_backend_with_shutdown("logged");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = super::load_example_config(
         "observability/access-logging.yaml",

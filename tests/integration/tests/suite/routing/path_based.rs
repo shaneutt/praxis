@@ -4,7 +4,7 @@
 //! Path-based routing tests.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,8 +12,10 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
 
 #[test]
 fn path_based_routing() {
-    let api_port = start_backend("api response");
-    let web_port = start_backend("web response");
+    let api_port_guard = start_backend_with_shutdown("api response");
+    let api_port = api_port_guard.port();
+    let web_port_guard = start_backend_with_shutdown("web response");
+    let web_port = web_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -56,7 +58,8 @@ filter_chains:
 
 #[test]
 fn no_matching_route_returns_404() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(

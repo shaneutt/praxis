@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -13,8 +13,10 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
 
 #[test]
 fn canary_routing() {
-    let port_stable = start_backend("stable");
-    let port_canary = start_backend("canary");
+    let port_stable_guard = start_backend_with_shutdown("stable");
+    let port_stable = port_stable_guard.port();
+    let port_canary_guard = start_backend_with_shutdown("canary");
+    let port_canary = port_canary_guard.port();
     let proxy_port = free_port();
     let config = super::load_example_config(
         "traffic-management/canary-routing.yaml",

@@ -10,7 +10,7 @@ use std::{
 };
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -18,7 +18,8 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
 
 #[test]
 fn downstream_read_timeout_normal_request_succeeds() {
-    let backend_port = start_backend("timeout-ok");
+    let backend_port_guard = start_backend_with_shutdown("timeout-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = format!(
         r#"
@@ -53,7 +54,8 @@ filter_chains:
 
 #[test]
 fn downstream_read_timeout_stalled_body_closes_connection() {
-    let backend_port = start_backend("body-ok");
+    let backend_port_guard = start_backend_with_shutdown("body-ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = format!(
         r#"

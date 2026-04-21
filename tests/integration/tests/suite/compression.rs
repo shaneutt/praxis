@@ -4,7 +4,9 @@
 //! Integration tests for the `compression` filter.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{Backend, free_port, http_send, parse_header, parse_status, start_backend, start_proxy};
+use praxis_test_utils::{
+    Backend, free_port, http_send, parse_header, parse_status, start_backend_with_shutdown, start_proxy,
+};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,7 +14,8 @@ use praxis_test_utils::{Backend, free_port, http_send, parse_header, parse_statu
 
 #[test]
 fn compression_filter_is_accepted_in_pipeline() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -50,7 +53,8 @@ filter_chains:
 
 #[test]
 fn compression_with_custom_level() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -90,7 +94,8 @@ filter_chains:
 
 #[test]
 fn compression_with_algorithm_config() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -137,7 +142,8 @@ filter_chains:
 
 #[test]
 fn compression_in_filter_chain() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -177,7 +183,8 @@ filter_chains:
 
 #[test]
 fn no_compression_without_accept_encoding() {
-    let backend_port = start_backend("uncompressed-response");
+    let backend_port_guard = start_backend_with_shutdown("uncompressed-response");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(

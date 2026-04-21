@@ -4,7 +4,7 @@
 //! Tests for model-to-header filter behavior.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_post, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_post, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,8 +12,10 @@ use praxis_test_utils::{free_port, http_post, start_backend, start_proxy};
 
 #[test]
 fn model_to_header_routes_by_model_field() {
-    let port_a = start_backend("model-a-response");
-    let port_default = start_backend("default-response");
+    let port_a_guard = start_backend_with_shutdown("model-a-response");
+    let port_a = port_a_guard.port();
+    let port_default_guard = start_backend_with_shutdown("default-response");
+    let port_default = port_default_guard.port();
     let proxy_port = free_port();
     let yaml = make_yaml(proxy_port, "mistral-large-latest", port_a, port_default);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -28,8 +30,10 @@ fn model_to_header_routes_by_model_field() {
 
 #[test]
 fn model_to_header_falls_through_on_unknown_model() {
-    let port_a = start_backend("model-a-response");
-    let port_default = start_backend("default-response");
+    let port_a_guard = start_backend_with_shutdown("model-a-response");
+    let port_a = port_a_guard.port();
+    let port_default_guard = start_backend_with_shutdown("default-response");
+    let port_default = port_default_guard.port();
     let proxy_port = free_port();
     let yaml = make_yaml(proxy_port, "mistral-large-latest", port_a, port_default);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -41,8 +45,10 @@ fn model_to_header_falls_through_on_unknown_model() {
 
 #[test]
 fn model_to_header_continues_without_model_field() {
-    let port_a = start_backend("model-a-response");
-    let port_default = start_backend("default-response");
+    let port_a_guard = start_backend_with_shutdown("model-a-response");
+    let port_a = port_a_guard.port();
+    let port_default_guard = start_backend_with_shutdown("default-response");
+    let port_default = port_default_guard.port();
     let proxy_port = free_port();
     let yaml = make_yaml(proxy_port, "mistral-large-latest", port_a, port_default);
     let config = Config::from_yaml(&yaml).unwrap();

@@ -5,7 +5,8 @@
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    free_port, http_send, json_post, parse_body, parse_status, start_backend, start_header_echo_backend, start_proxy,
+    free_port, http_send, json_post, parse_body, parse_status, start_backend_with_shutdown, start_header_echo_backend,
+    start_proxy,
 };
 
 // -----------------------------------------------------------------------------
@@ -14,9 +15,12 @@ use praxis_test_utils::{
 
 #[test]
 fn stream_buffer_routes_by_extracted_action() {
-    let process_port = start_backend("process-backend");
-    let validate_port = start_backend("validate-backend");
-    let default_port = start_backend("default-backend");
+    let process_port_guard = start_backend_with_shutdown("process-backend");
+    let process_port = process_port_guard.port();
+    let validate_port_guard = start_backend_with_shutdown("validate-backend");
+    let validate_port = validate_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-backend");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = action_routing_yaml(proxy_port, process_port, validate_port, default_port);
@@ -42,9 +46,12 @@ fn stream_buffer_routes_by_extracted_action() {
 
 #[test]
 fn stream_buffer_unknown_action_routes_to_default() {
-    let process_port = start_backend("process-backend");
-    let validate_port = start_backend("validate-backend");
-    let default_port = start_backend("default-backend");
+    let process_port_guard = start_backend_with_shutdown("process-backend");
+    let process_port = process_port_guard.port();
+    let validate_port_guard = start_backend_with_shutdown("validate-backend");
+    let validate_port = validate_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-backend");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = action_routing_yaml(proxy_port, process_port, validate_port, default_port);
@@ -62,9 +69,12 @@ fn stream_buffer_unknown_action_routes_to_default() {
 
 #[test]
 fn stream_buffer_missing_action_routes_to_default() {
-    let process_port = start_backend("process-backend");
-    let validate_port = start_backend("validate-backend");
-    let default_port = start_backend("default-backend");
+    let process_port_guard = start_backend_with_shutdown("process-backend");
+    let process_port = process_port_guard.port();
+    let validate_port_guard = start_backend_with_shutdown("validate-backend");
+    let validate_port = validate_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-backend");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = action_routing_yaml(proxy_port, process_port, validate_port, default_port);
@@ -131,8 +141,10 @@ fn multi_field_missing_one_still_extracts_other() {
 
 #[test]
 fn multi_field_routes_by_extracted_model() {
-    let claude_port = start_backend("claude-backend");
-    let default_port = start_backend("default-backend");
+    let claude_port_guard = start_backend_with_shutdown("claude-backend");
+    let claude_port = claude_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-backend");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = multi_field_routing_yaml(proxy_port, claude_port, default_port);
@@ -266,9 +278,12 @@ fn body_limit_exact_boundary_succeeds() {
 
 #[test]
 fn tenant_extraction_routes_to_correct_backend() {
-    let acme_port = start_backend("acme-backend");
-    let globex_port = start_backend("globex-backend");
-    let default_port = start_backend("default-backend");
+    let acme_port_guard = start_backend_with_shutdown("acme-backend");
+    let acme_port = acme_port_guard.port();
+    let globex_port_guard = start_backend_with_shutdown("globex-backend");
+    let globex_port = globex_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-backend");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = tenant_routing_yaml(proxy_port, acme_port, globex_port, default_port);
@@ -300,9 +315,12 @@ fn tenant_extraction_routes_to_correct_backend() {
 
 #[test]
 fn tenant_extraction_unknown_tenant_routes_to_default() {
-    let acme_port = start_backend("acme-backend");
-    let globex_port = start_backend("globex-backend");
-    let default_port = start_backend("default-backend");
+    let acme_port_guard = start_backend_with_shutdown("acme-backend");
+    let acme_port = acme_port_guard.port();
+    let globex_port_guard = start_backend_with_shutdown("globex-backend");
+    let globex_port = globex_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-backend");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = tenant_routing_yaml(proxy_port, acme_port, globex_port, default_port);
@@ -323,9 +341,12 @@ fn tenant_extraction_unknown_tenant_routes_to_default() {
 
 #[test]
 fn tenant_extraction_missing_tenant_routes_to_default() {
-    let acme_port = start_backend("acme-backend");
-    let globex_port = start_backend("globex-backend");
-    let default_port = start_backend("default-backend");
+    let acme_port_guard = start_backend_with_shutdown("acme-backend");
+    let acme_port = acme_port_guard.port();
+    let globex_port_guard = start_backend_with_shutdown("globex-backend");
+    let globex_port = globex_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-backend");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = tenant_routing_yaml(proxy_port, acme_port, globex_port, default_port);

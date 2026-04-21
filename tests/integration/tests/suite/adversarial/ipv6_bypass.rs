@@ -6,7 +6,8 @@
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    free_port, free_port_v6, http_get, http_get_v6, ipv6_available, start_backend, start_backend_v6, start_proxy,
+    free_port, free_port_v6, http_get, http_get_v6, ipv6_available, start_backend_v6, start_backend_with_shutdown,
+    start_proxy,
 };
 
 // -----------------------------------------------------------------------------
@@ -15,7 +16,8 @@ use praxis_test_utils::{
 
 #[test]
 fn ipv4_deny_blocks_loopback() {
-    let backend_port = start_backend("secret");
+    let backend_port_guard = start_backend_with_shutdown("secret");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(

@@ -4,7 +4,7 @@
 //! Integration tests verifying that each HTTP listener uses its own filter pipeline.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_send, parse_header, start_backend, start_proxy, wait_for_http};
+use praxis_test_utils::{free_port, http_send, parse_header, start_backend_with_shutdown, start_proxy, wait_for_http};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,7 +12,8 @@ use praxis_test_utils::{free_port, http_send, parse_header, start_backend, start
 
 #[test]
 fn listeners_with_different_filter_chains_use_own_pipeline() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let alpha_port = free_port();
     let beta_port = free_port();
 
@@ -95,7 +96,8 @@ filter_chains:
 
 #[test]
 fn listeners_with_shared_chain_both_work() {
-    let backend_port = start_backend("shared");
+    let backend_port_guard = start_backend_with_shutdown("shared");
+    let backend_port = backend_port_guard.port();
     let first_port = free_port();
     let second_port = free_port();
 
@@ -159,7 +161,8 @@ filter_chains:
 
 #[test]
 fn three_listeners_each_with_distinct_pipeline() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let port_a = free_port();
     let port_b = free_port();
     let port_c = free_port();

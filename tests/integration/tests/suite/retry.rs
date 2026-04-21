@@ -4,7 +4,9 @@
 //! Integration tests for retry behavior (or lack thereof).
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, http_send, parse_status, simple_proxy_yaml, start_backend, start_proxy};
+use praxis_test_utils::{
+    free_port, http_get, http_send, parse_status, simple_proxy_yaml, start_backend_with_shutdown, start_proxy,
+};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -79,7 +81,8 @@ filter_chains:
 #[test]
 fn no_retry_mixed_endpoints_healthy_serves() {
     let dead_port = free_port();
-    let live_port = start_backend("live-backend");
+    let live_port_guard = start_backend_with_shutdown("live-backend");
+    let live_port = live_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(

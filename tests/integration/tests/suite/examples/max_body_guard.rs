@@ -10,7 +10,7 @@ use praxis_filter::{
     FilterAction, FilterError, FilterFactory, FilterRegistry, HttpFilter, HttpFilterContext, Rejection,
 };
 use praxis_test_utils::{
-    free_port, http_get, http_send, parse_body, parse_status, start_backend, start_proxy_with_registry,
+    free_port, http_get, http_send, parse_body, parse_status, start_backend_with_shutdown, start_proxy_with_registry,
 };
 
 // -----------------------------------------------------------------------------
@@ -19,7 +19,8 @@ use praxis_test_utils::{
 
 #[test]
 fn max_body_guard() {
-    let backend_port = start_backend("accepted");
+    let backend_port_guard = start_backend_with_shutdown("accepted");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = format!(
         r#"

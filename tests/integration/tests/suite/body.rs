@@ -8,7 +8,7 @@ use praxis_core::config::Config;
 use praxis_filter::{BodyAccess, BodyMode, FilterAction, FilterError, HttpFilter, HttpFilterContext, Rejection};
 use praxis_test_utils::{
     custom_filter_yaml, free_port, http_post, http_send, parse_status, registry_with, simple_proxy_yaml,
-    start_echo_backend, start_proxy, start_proxy_with_registry,
+    start_backend_with_shutdown, start_echo_backend, start_proxy, start_proxy_with_registry,
 };
 
 // -----------------------------------------------------------------------------
@@ -112,7 +112,8 @@ fn async_body_filter_performs_async_work() {
 
 #[test]
 fn body_response_reject_filter_aborts_forbidden_response() {
-    let backend_port = praxis_test_utils::start_backend("this FORBIDDEN response must not reach the client");
+    let backend_port_guard = start_backend_with_shutdown("this FORBIDDEN response must not reach the client");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&custom_filter_yaml(proxy_port, backend_port, "response_body_reject")).unwrap();
     let registry = registry_with("response_body_reject", || Box::new(ResponseBodyRejectFilter));
@@ -129,7 +130,8 @@ fn body_response_reject_filter_aborts_forbidden_response() {
 
 #[test]
 fn body_response_reject_filter_allows_clean_response() {
-    let backend_port = praxis_test_utils::start_backend("this is a clean response");
+    let backend_port_guard = start_backend_with_shutdown("this is a clean response");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&custom_filter_yaml(proxy_port, backend_port, "response_body_reject")).unwrap();
     let registry = registry_with("response_body_reject", || Box::new(ResponseBodyRejectFilter));
@@ -146,7 +148,8 @@ fn body_response_reject_filter_allows_clean_response() {
 
 #[test]
 fn body_uppercase_filter_transforms_response_body() {
-    let backend_port = praxis_test_utils::start_backend("hello world");
+    let backend_port_guard = start_backend_with_shutdown("hello world");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&custom_filter_yaml(proxy_port, backend_port, "response_body_uppercase")).unwrap();
     let registry = registry_with("response_body_uppercase", || Box::new(ResponseBodyUppercaseFilter));
@@ -237,7 +240,8 @@ fn body_size_limit_without_content_length_enforced() {
 #[test]
 fn response_body_over_limit_returns_error() {
     let large_body = "z".repeat(512);
-    let backend_port = praxis_test_utils::start_backend(&large_body);
+    let backend_port_guard = start_backend_with_shutdown(&large_body);
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&body_limit_yaml_response(proxy_port, backend_port, 64)).unwrap();
     let registry = registry_with("response_body_reject_large", || Box::new(ResponseBodyLimitCheckFilter));

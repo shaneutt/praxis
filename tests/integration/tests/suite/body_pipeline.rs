@@ -10,7 +10,7 @@ use praxis_filter::{
     Rejection,
 };
 use praxis_test_utils::{
-    free_port, free_port_guard, http_post, http_send, json_post, parse_body, parse_status, start_backend,
+    free_port, free_port_guard, http_post, http_send, json_post, parse_body, parse_status, start_backend_with_shutdown,
     start_echo_backend, start_proxy_with_registry, wait_for_tcp,
 };
 
@@ -123,8 +123,10 @@ fn buffer_pipeline_rejects_forbidden_content() {
 
 #[test]
 fn stream_buffer_pipeline_extracts_and_routes() {
-    let claude_port = start_backend("claude-response");
-    let default_port = start_backend("default-response");
+    let claude_port_guard = start_backend_with_shutdown("claude-response");
+    let claude_port = claude_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-response");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&stream_buffer_routing_yaml(proxy_port, claude_port, default_port)).unwrap();
     let addr = praxis_test_utils::start_proxy(&config);
@@ -150,8 +152,10 @@ fn stream_buffer_pipeline_extracts_and_routes() {
 
 #[test]
 fn stream_buffer_pipeline_fallback_routing() {
-    let claude_port = start_backend("claude-response");
-    let default_port = start_backend("default-response");
+    let claude_port_guard = start_backend_with_shutdown("claude-response");
+    let claude_port = claude_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-response");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&stream_buffer_routing_yaml(proxy_port, claude_port, default_port)).unwrap();
     let addr = praxis_test_utils::start_proxy(&config);
@@ -225,8 +229,10 @@ filter_chains:
 #[test]
 fn multi_listener_per_listener_filter_chains() {
     let echo_port = start_echo_backend();
-    let claude_port = start_backend("claude-routed");
-    let default_port = start_backend("default-routed");
+    let claude_port_guard = start_backend_with_shutdown("claude-routed");
+    let claude_port = claude_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-routed");
+    let default_port = default_port_guard.port();
     let extraction_guard = free_port_guard();
     let passthrough_guard = free_port_guard();
 

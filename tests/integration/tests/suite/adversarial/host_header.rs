@@ -4,7 +4,9 @@
 //! Adversarial tests for Host header attack vectors.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_send, parse_status, simple_proxy_yaml, start_backend, start_proxy};
+use praxis_test_utils::{
+    free_port, http_send, parse_status, simple_proxy_yaml, start_backend_with_shutdown, start_proxy,
+};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,7 +14,8 @@ use praxis_test_utils::{free_port, http_send, parse_status, simple_proxy_yaml, s
 
 #[test]
 fn missing_host_header_rejected_http11() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -30,7 +33,8 @@ fn missing_host_header_rejected_http11() {
 
 #[test]
 fn conflicting_host_headers_rejected() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -49,7 +53,8 @@ fn conflicting_host_headers_rejected() {
 
 #[test]
 fn identical_duplicate_host_headers_accepted() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -71,7 +76,8 @@ fn identical_duplicate_host_headers_accepted() {
 
 #[test]
 fn host_header_with_port_accepted() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -91,7 +97,8 @@ fn host_header_with_port_accepted() {
 
 #[test]
 fn empty_host_header_handled_safely() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -109,7 +116,8 @@ fn empty_host_header_handled_safely() {
 
 #[test]
 fn extremely_long_host_header_rejected() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -133,7 +141,8 @@ fn extremely_long_host_header_rejected() {
 
 #[test]
 fn host_ip_literal_does_not_bypass_routing() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();

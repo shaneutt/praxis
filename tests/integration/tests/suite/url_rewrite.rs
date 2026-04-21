@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -14,7 +14,8 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
 
 #[test]
 fn url_rewrite_example_config() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = super::examples::load_example_config(
         "transformation/url-rewriting.yaml",
@@ -30,7 +31,8 @@ fn url_rewrite_example_config() {
 
 #[test]
 fn url_rewrite_regex_changes_path_end_to_end() {
-    let backend_port = start_backend("rewritten");
+    let backend_port_guard = start_backend_with_shutdown("rewritten");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -68,8 +70,10 @@ filter_chains:
 
 #[test]
 fn url_rewrite_chained_with_router() {
-    let api_port = start_backend("api-v2");
-    let fallback_port = start_backend("fallback");
+    let api_port_guard = start_backend_with_shutdown("api-v2");
+    let api_port = api_port_guard.port();
+    let fallback_port_guard = start_backend_with_shutdown("fallback");
+    let fallback_port = fallback_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -117,7 +121,8 @@ filter_chains:
 
 #[test]
 fn url_rewrite_with_query_param_manipulation() {
-    let backend_port = start_backend("stripped");
+    let backend_port_guard = start_backend_with_shutdown("stripped");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(

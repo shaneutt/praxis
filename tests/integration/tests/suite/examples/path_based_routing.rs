@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -13,9 +13,12 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
 
 #[test]
 fn path_based_routing() {
-    let api_port = start_backend("api");
-    let static_port = start_backend("static");
-    let default_port = start_backend("default");
+    let api_port_guard = start_backend_with_shutdown("api");
+    let api_port = api_port_guard.port();
+    let static_port_guard = start_backend_with_shutdown("static");
+    let static_port = static_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
     let config = super::load_example_config(
         "traffic-management/path-based-routing.yaml",

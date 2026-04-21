@@ -18,7 +18,7 @@ use praxis_core::{
     config::Config,
     health::{EndpointHealth, HealthRegistry},
 };
-use praxis_test_utils::{free_port, http_get, start_backend, start_full_proxy, wait_for_http};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_full_proxy, wait_for_http};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -26,7 +26,8 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_full_proxy, wa
 
 #[test]
 fn health_check_config_parses_with_clusters() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
 
     let yaml = format!(
         r#"
@@ -200,7 +201,8 @@ filter_chains:
 
 #[test]
 fn ready_endpoint_reports_cluster_health() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let admin_port = free_port();
 
@@ -380,7 +382,8 @@ fn health_check_builds_registry_for_checked_clusters() {
 
 #[test]
 fn health_check_routes_away_from_unhealthy_backend() {
-    let stable_port = start_backend("stable");
+    let stable_port_guard = start_backend_with_shutdown("stable");
+    let stable_port = stable_port_guard.port();
     let stoppable = StoppableBackend::start("stoppable");
     let proxy_port = free_port();
 

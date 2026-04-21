@@ -4,7 +4,7 @@
 //! Host-based routing tests.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,8 +12,10 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
 
 #[test]
 fn host_based_routing() {
-    let api_port = start_backend("api host");
-    let default_port = start_backend("default host");
+    let api_port_guard = start_backend_with_shutdown("api host");
+    let api_port = api_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default host");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(

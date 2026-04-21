@@ -5,7 +5,9 @@
 
 use praxis_core::config::Config;
 use praxis_filter::{FilterAction, FilterError, HttpFilter, HttpFilterContext};
-use praxis_test_utils::{free_port, http_get, http_send, registry_with, start_backend, start_proxy_with_registry};
+use praxis_test_utils::{
+    free_port, http_get, http_send, registry_with, start_backend_with_shutdown, start_proxy_with_registry,
+};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -13,7 +15,8 @@ use praxis_test_utils::{free_port, http_get, http_send, registry_with, start_bac
 
 #[test]
 fn response_filter_executes() {
-    let backend_port = start_backend("filtered response");
+    let backend_port_guard = start_backend_with_shutdown("filtered response");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -60,7 +63,8 @@ filter_chains:
 
 #[test]
 fn access_log_filter_processes_request() {
-    let backend_port = start_backend("logged response");
+    let backend_port_guard = start_backend_with_shutdown("logged response");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(

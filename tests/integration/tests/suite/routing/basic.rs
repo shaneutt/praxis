@@ -4,7 +4,9 @@
 //! Basic proxy and dead backend tests.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, http_send, parse_status, simple_proxy_yaml, start_backend, start_proxy};
+use praxis_test_utils::{
+    free_port, http_get, http_send, parse_status, simple_proxy_yaml, start_backend_with_shutdown, start_proxy,
+};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -39,7 +41,8 @@ fn post_to_dead_backend_returns_502() {
 
 #[test]
 fn basic_proxy() {
-    let backend_port = start_backend("hello from backend");
+    let backend_port_guard = start_backend_with_shutdown("hello from backend");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&simple_proxy_yaml(proxy_port, backend_port)).unwrap();
     let addr = start_proxy(&config);
@@ -51,9 +54,12 @@ fn basic_proxy() {
 
 #[test]
 fn round_robin_distribution() {
-    let port_a = start_backend("backend-a");
-    let port_b = start_backend("backend-b");
-    let port_c = start_backend("backend-c");
+    let port_a_guard = start_backend_with_shutdown("backend-a");
+    let port_a = port_a_guard.port();
+    let port_b_guard = start_backend_with_shutdown("backend-b");
+    let port_b = port_b_guard.port();
+    let port_c_guard = start_backend_with_shutdown("backend-c");
+    let port_c = port_c_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(

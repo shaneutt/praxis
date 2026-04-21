@@ -4,7 +4,7 @@
 //! Integration tests for wildcard subdomain routing.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, http_send, parse_status, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get, http_send, parse_status, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,8 +12,10 @@ use praxis_test_utils::{free_port, http_get, http_send, parse_status, start_back
 
 #[test]
 fn wildcard_host_routes_subdomain_to_cluster() {
-    let wildcard_port = start_backend("wildcard-backend");
-    let default_port = start_backend("default-backend");
+    let wildcard_port_guard = start_backend_with_shutdown("wildcard-backend");
+    let wildcard_port = wildcard_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-backend");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -63,8 +65,10 @@ filter_chains:
 
 #[test]
 fn wildcard_host_does_not_match_bare_domain() {
-    let wildcard_port = start_backend("wildcard-backend");
-    let default_port = start_backend("default-backend");
+    let wildcard_port_guard = start_backend_with_shutdown("wildcard-backend");
+    let wildcard_port = wildcard_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-backend");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -107,8 +111,10 @@ filter_chains:
 
 #[test]
 fn wildcard_host_does_not_match_multi_level_subdomain() {
-    let wildcard_port = start_backend("wildcard-backend");
-    let default_port = start_backend("default-backend");
+    let wildcard_port_guard = start_backend_with_shutdown("wildcard-backend");
+    let wildcard_port = wildcard_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-backend");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -151,7 +157,8 @@ filter_chains:
 
 #[test]
 fn wildcard_host_with_port_in_host_header() {
-    let wildcard_port = start_backend("wildcard-backend");
+    let wildcard_port_guard = start_backend_with_shutdown("wildcard-backend");
+    let wildcard_port = wildcard_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -192,8 +199,10 @@ filter_chains:
 
 #[test]
 fn exact_host_takes_priority_over_wildcard() {
-    let exact_port = start_backend("exact-backend");
-    let wildcard_port = start_backend("wildcard-backend");
+    let exact_port_guard = start_backend_with_shutdown("exact-backend");
+    let exact_port = exact_port_guard.port();
+    let wildcard_port_guard = start_backend_with_shutdown("wildcard-backend");
+    let wildcard_port = wildcard_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -244,7 +253,8 @@ filter_chains:
 
 #[test]
 fn wildcard_no_match_returns_404() {
-    let wildcard_port = start_backend("wildcard-backend");
+    let wildcard_port_guard = start_backend_with_shutdown("wildcard-backend");
+    let wildcard_port = wildcard_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -278,8 +288,10 @@ filter_chains:
 
 #[test]
 fn wildcard_combined_with_path_routing() {
-    let api_port = start_backend("api-response");
-    let web_port = start_backend("web-response");
+    let api_port_guard = start_backend_with_shutdown("api-response");
+    let api_port = api_port_guard.port();
+    let web_port_guard = start_backend_with_shutdown("web-response");
+    let web_port = web_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -327,8 +339,10 @@ filter_chains:
 
 #[test]
 fn wildcard_shorthand_routes_config() {
-    let wildcard_port = start_backend("wildcard-shorthand");
-    let default_port = start_backend("default-shorthand");
+    let wildcard_port_guard = start_backend_with_shutdown("wildcard-shorthand");
+    let wildcard_port = wildcard_port_guard.port();
+    let default_port_guard = start_backend_with_shutdown("default-shorthand");
+    let default_port = default_port_guard.port();
     let proxy_port = free_port();
 
     let yaml = format!(

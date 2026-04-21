@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use praxis_test_utils::{Backend, free_port, http_send, parse_header, start_backend, start_proxy};
+use praxis_test_utils::{Backend, free_port, http_send, parse_header, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -13,7 +13,8 @@ use praxis_test_utils::{Backend, free_port, http_send, parse_header, start_backe
 
 #[test]
 fn header_manipulation() {
-    let backend_port = start_backend("ok");
+    let backend_port_guard = start_backend_with_shutdown("ok");
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = super::load_example_config(
         "transformation/header-manipulation.yaml",

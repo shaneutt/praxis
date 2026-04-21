@@ -6,7 +6,7 @@
 use std::time::Duration;
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy, start_slow_backend};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy, start_slow_backend};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -14,7 +14,8 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_proxy, start_s
 
 #[test]
 fn timeout() {
-    let fast_port = start_backend("fast");
+    let fast_port_guard = start_backend_with_shutdown("fast");
+    let fast_port = fast_port_guard.port();
     let proxy_port = free_port();
     let yaml = format!(
         r#"

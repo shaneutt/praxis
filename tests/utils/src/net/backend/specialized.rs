@@ -7,6 +7,10 @@
 use std::{
     io::{Read, Write},
     net::TcpStream,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -74,6 +78,51 @@ pub(crate) fn spawn_tcp_server(handler: impl Fn(TcpStream) + Send + Clone + 'sta
     });
 
     port
+}
+
+/// RAII guard that shuts down a backend spawned by
+/// [`spawn_tcp_server_with_shutdown`] when dropped.
+pub struct BackendGuard {
+    /// The port the backend is listening on.
+    port: u16,
+
+    /// Shared flag signalling the listener loop to exit.
+    shutdown: Arc<AtomicBool>,
+}
+
+impl BackendGuard {
+    /// The allocated port number.
+    pub fn port(&self) -> u16 {
+        self.port
+    }
+}
+
+impl Drop for BackendGuard {
+    fn drop(&mut self) {
+        self.shutdown.store(true, Ordering::Release);
+        let _ = TcpStream::connect(format!("127.0.0.1:{}", self.port));
+    }
+}
+
+/// Spawn a raw TCP server with a shutdown guard. The
+/// listener loop exits when the returned [`BackendGuard`]
+/// is dropped.
+pub(crate) fn spawn_tcp_server_with_shutdown(handler: impl Fn(TcpStream) + Send + Clone + 'static) -> BackendGuard {
+    let (listener, port) = crate::net::port::bind_unique_port();
+    let shutdown = Arc::new(AtomicBool::new(false));
+    let flag = Arc::clone(&shutdown);
+
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            if flag.load(Ordering::Acquire) {
+                break;
+            }
+            let handler = handler.clone();
+            std::thread::spawn(move || handler(stream));
+        }
+    });
+
+    BackendGuard { port, shutdown }
 }
 
 /// Read from a TCP stream until the HTTP header terminator
