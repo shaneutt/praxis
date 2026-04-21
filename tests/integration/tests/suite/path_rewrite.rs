@@ -3,7 +3,7 @@
 
 //! Integration tests for the path_rewrite filter.
 
-use praxis_test_utils::{free_port, http_get, start_proxy, start_uri_echo_backend};
+use praxis_test_utils::{free_port, http_get, start_proxy, start_uri_echo_backend_with_shutdown};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -11,7 +11,8 @@ use praxis_test_utils::{free_port, http_get, start_proxy, start_uri_echo_backend
 
 #[test]
 fn strip_prefix_rewrites_upstream_path() {
-    let backend_port = start_uri_echo_backend();
+    let backend_guard = start_uri_echo_backend_with_shutdown();
+    let backend_port = backend_guard.port();
     let proxy_port = free_port();
     let yaml = format!(
         r#"
@@ -50,7 +51,8 @@ filter_chains:
 
 #[test]
 fn strip_prefix_preserves_query_string() {
-    let backend_port = start_uri_echo_backend();
+    let backend_port_guard = start_uri_echo_backend_with_shutdown();
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = format!(
         r#"
@@ -92,7 +94,8 @@ filter_chains:
 
 #[test]
 fn add_prefix_prepends_to_upstream_path() {
-    let backend_port = start_uri_echo_backend();
+    let backend_port_guard = start_uri_echo_backend_with_shutdown();
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = format!(
         r#"
@@ -128,7 +131,8 @@ filter_chains:
 
 #[test]
 fn replace_rewrites_upstream_path_with_regex() {
-    let backend_port = start_uri_echo_backend();
+    let backend_port_guard = start_uri_echo_backend_with_shutdown();
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = format!(
         r#"
@@ -169,8 +173,10 @@ filter_chains:
 
 #[test]
 fn rewrite_then_route_uses_rewritten_path() {
-    let backend_a_port = start_uri_echo_backend();
-    let backend_b_port = start_uri_echo_backend();
+    let backend_a_port_guard = start_uri_echo_backend_with_shutdown();
+    let backend_a_port = backend_a_port_guard.port();
+    let backend_b_port_guard = start_uri_echo_backend_with_shutdown();
+    let backend_b_port = backend_b_port_guard.port();
     let proxy_port = free_port();
     let yaml = format!(
         r#"
@@ -217,7 +223,8 @@ filter_chains:
 
 #[test]
 fn no_rewrite_when_prefix_does_not_match() {
-    let backend_port = start_uri_echo_backend();
+    let backend_port_guard = start_uri_echo_backend_with_shutdown();
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = format!(
         r#"

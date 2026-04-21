@@ -5,7 +5,8 @@
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    free_port, http_get, http_send, parse_body, parse_status, simple_proxy_yaml, start_proxy, start_uri_echo_backend,
+    free_port, http_get, http_send, parse_body, parse_status, simple_proxy_yaml, start_proxy,
+    start_uri_echo_backend_with_shutdown,
 };
 
 // -----------------------------------------------------------------------------
@@ -14,7 +15,8 @@ use praxis_test_utils::{
 
 #[test]
 fn bare_dotdot_path_normalized_or_rejected() {
-    let backend_port = start_uri_echo_backend();
+    let backend_port_guard = start_uri_echo_backend_with_shutdown();
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -32,7 +34,8 @@ fn bare_dotdot_path_normalized_or_rejected() {
 
 #[test]
 fn nested_dotdot_path_normalized_or_rejected() {
-    let backend_port = start_uri_echo_backend();
+    let backend_port_guard = start_uri_echo_backend_with_shutdown();
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -50,7 +53,8 @@ fn nested_dotdot_path_normalized_or_rejected() {
 
 #[test]
 fn percent_encoded_dots_preserved_not_decoded() {
-    let backend_port = start_uri_echo_backend();
+    let backend_port_guard = start_uri_echo_backend_with_shutdown();
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -75,7 +79,8 @@ fn percent_encoded_dots_preserved_not_decoded() {
 
 #[test]
 fn mixed_encoding_traversal_handled_safely() {
-    let backend_port = start_uri_echo_backend();
+    let backend_port_guard = start_uri_echo_backend_with_shutdown();
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -100,7 +105,8 @@ fn mixed_encoding_traversal_handled_safely() {
 
 #[test]
 fn path_with_null_byte_rejected_or_sanitized() {
-    let backend_port = start_uri_echo_backend();
+    let backend_port_guard = start_uri_echo_backend_with_shutdown();
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -118,7 +124,8 @@ fn path_with_null_byte_rejected_or_sanitized() {
 
 #[test]
 fn double_slash_path_forwarded_intact() {
-    let backend_port = start_uri_echo_backend();
+    let backend_port_guard = start_uri_echo_backend_with_shutdown();
+    let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();

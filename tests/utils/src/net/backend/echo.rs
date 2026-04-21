@@ -67,6 +67,27 @@ pub fn start_uri_echo_backend() -> u16 {
     })
 }
 
+/// Start a backend that echoes the request URI (path and
+/// query) as the response body, with a [`BackendGuard`]
+/// that shuts down the listener thread when dropped.
+///
+/// # Panics
+///
+/// Panics if the server fails to bind or accept connections.
+pub fn start_uri_echo_backend_with_shutdown() -> BackendGuard {
+    spawn_tcp_server_with_shutdown(|mut stream| {
+        stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        let raw = read_until_headers_complete(&mut stream);
+        let uri = raw
+            .lines()
+            .next()
+            .and_then(|line| line.split_whitespace().nth(1))
+            .unwrap_or("/")
+            .to_owned();
+        let _sent = write_http_response(&mut stream, &uri);
+    })
+}
+
 /// Start a backend that echoes request headers as the
 /// response body (one per line).
 ///
