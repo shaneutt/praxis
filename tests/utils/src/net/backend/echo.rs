@@ -6,7 +6,10 @@
 
 use std::{net::TcpStream, time::Duration};
 
-use super::specialized::{parse_content_length, read_until_headers_complete, spawn_tcp_server, write_http_response};
+use super::specialized::{
+    BackendGuard, parse_content_length, read_until_headers_complete, spawn_tcp_server, spawn_tcp_server_with_shutdown,
+    write_http_response,
+};
 
 // -----------------------------------------------------------------------------
 // Echo Backends
@@ -20,6 +23,21 @@ use super::specialized::{parse_content_length, read_until_headers_complete, spaw
 /// Panics if the server fails to bind or accept connections.
 pub fn start_echo_backend() -> u16 {
     spawn_tcp_server(|mut stream| {
+        stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        let body = read_request_body(&mut stream);
+        let _sent = write_http_response(&mut stream, &body);
+    })
+}
+
+/// Start a mock backend that echoes the request body back
+/// as the response body, with a [`BackendGuard`] that shuts
+/// down the listener thread when dropped.
+///
+/// # Panics
+///
+/// Panics if the server fails to bind or accept connections.
+pub fn start_echo_backend_with_shutdown() -> BackendGuard {
+    spawn_tcp_server_with_shutdown(|mut stream| {
         stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         let body = read_request_body(&mut stream);
         let _sent = write_http_response(&mut stream, &body);
