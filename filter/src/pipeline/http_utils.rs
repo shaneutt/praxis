@@ -85,13 +85,23 @@ pub(super) fn check_failure_mode(
     phase: &str,
     failure_mode: FailureMode,
 ) -> Result<(), FilterError> {
-    warn!(filter = filter_name, error = %error, "filter error during {phase}");
     match failure_mode {
         FailureMode::Open => {
-            warn!(filter = filter_name, "failure_mode=open, continuing after error");
+            warn!(
+                filter = filter_name,
+                error = %error,
+                "filter error during {phase}, continuing (failure_mode=open)"
+            );
             Ok(())
-        },
-        FailureMode::Closed => Err(error),
+        }
+        FailureMode::Closed => {
+            warn!(
+                filter = filter_name,
+                error = %error,
+                "filter error during {phase}, aborting"
+            );
+            Err(error)
+        }
     }
 }
 
