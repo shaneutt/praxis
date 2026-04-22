@@ -23,12 +23,12 @@ fn canary_routing() {
         proxy_port,
         HashMap::from([("127.0.0.1:3001", port_stable), ("127.0.0.1:3002", port_canary)]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let total = 200u32;
     let mut stable_count = 0u32;
     let mut canary_count = 0u32;
     for _ in 0..total {
-        let (status, body) = http_get(&addr, "/", None);
+        let (status, body) = http_get(proxy.addr(), "/", None);
         assert_eq!(status, 200, "canary request should return 200");
         match body.as_str() {
             "stable" => stable_count += 1,

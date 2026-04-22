@@ -118,7 +118,7 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    start_proxy(&config);
+    let _proxy = start_proxy(&config);
     wait_for_tcp(&format!("127.0.0.1:{port_b}"));
 
     let raw_a = http_send(

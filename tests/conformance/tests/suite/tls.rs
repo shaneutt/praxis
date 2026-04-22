@@ -35,10 +35,10 @@ fn rfc8446_tls_12_connection_accepted() {
     let proxy_port = free_port();
     let yaml = tls_proxy_yaml(proxy_port, backend_port, &certs);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy_no_wait(&config);
-    wait_for_https(&addr, &certs.client_config());
+    let proxy = start_tls_proxy_no_wait(&config);
+    wait_for_https(proxy.addr(), &certs.client_config());
 
-    let (status, body) = https_get(&addr, "/", &client_config);
+    let (status, body) = https_get(proxy.addr(), "/", &client_config);
     assert_eq!(status, 200, "TLS 1.2 connection must be accepted");
     assert_eq!(body, "tls12-ok", "TLS 1.2 response body must match");
 }
@@ -56,10 +56,10 @@ fn rfc8446_tls_13_connection_accepted() {
     let proxy_port = free_port();
     let yaml = tls_proxy_yaml(proxy_port, backend_port, &certs);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy_no_wait(&config);
-    wait_for_https(&addr, &certs.client_config());
+    let proxy = start_tls_proxy_no_wait(&config);
+    wait_for_https(proxy.addr(), &certs.client_config());
 
-    let (status, body) = https_get(&addr, "/", &client_config);
+    let (status, body) = https_get(proxy.addr(), "/", &client_config);
     assert_eq!(status, 200, "TLS 1.3 connection must be accepted");
     assert_eq!(body, "tls13-ok", "TLS 1.3 response body must match");
 }
@@ -75,9 +75,9 @@ fn rfc8446_tls_10_connection_rejected() {
     let proxy_port = free_port();
     let yaml = tls_proxy_yaml(proxy_port, backend_port, &certs);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy(&config, &certs.client_config());
+    let proxy = start_tls_proxy(&config, &certs.client_config());
 
-    let rejected = attempt_legacy_tls(&addr, 0x0301);
+    let rejected = attempt_legacy_tls(proxy.addr(), 0x0301);
     assert!(rejected, "TLS 1.0 (0x0301) connection must be rejected by rustls");
 }
 
@@ -91,9 +91,9 @@ fn rfc8446_tls_11_connection_rejected() {
     let proxy_port = free_port();
     let yaml = tls_proxy_yaml(proxy_port, backend_port, &certs);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy(&config, &certs.client_config());
+    let proxy = start_tls_proxy(&config, &certs.client_config());
 
-    let rejected = attempt_legacy_tls(&addr, 0x0302);
+    let rejected = attempt_legacy_tls(proxy.addr(), 0x0302);
     assert!(rejected, "TLS 1.1 (0x0302) connection must be rejected by rustls");
 }
 
@@ -109,9 +109,9 @@ fn rfc8446_alpn_h2_accepted() {
     let proxy_port = free_port();
     let yaml = tls_proxy_yaml(proxy_port, backend_port, &certs);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy(&config, &certs.client_config());
+    let proxy = start_tls_proxy(&config, &certs.client_config());
 
-    let (status, body) = https_get(&addr, "/", &certs.client_config());
+    let (status, body) = https_get(proxy.addr(), "/", &certs.client_config());
     assert_eq!(status, 200, "H2 over TLS (via ALPN) must succeed");
     assert_eq!(body, "alpn-h2", "H2 response body must match");
 }
@@ -127,9 +127,9 @@ fn rfc8446_alpn_http11_tls_handshake_accepted() {
     let proxy_port = free_port();
     let yaml = tls_proxy_yaml(proxy_port, backend_port, &certs);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy(&config, &certs.client_config());
+    let proxy = start_tls_proxy(&config, &certs.client_config());
 
-    let handshake_ok = tls_handshake_succeeds(&addr, &certs, &[b"http/1.1"]);
+    let handshake_ok = tls_handshake_succeeds(proxy.addr(), &certs, &[b"http/1.1"]);
     assert!(
         handshake_ok,
         "TLS handshake with http/1.1 ALPN must succeed (server should not reject based on ALPN alone)"
@@ -153,11 +153,11 @@ fn rfc8446_invalid_client_cert_rejected_with_mtls() {
     let proxy_port = free_port();
     let yaml = mtls_proxy_yaml(proxy_port, backend_port, &server_certs);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy_no_wait(&config);
-    wait_for_https(&addr, &valid_client_config);
+    let proxy = start_tls_proxy_no_wait(&config);
+    wait_for_https(proxy.addr(), &valid_client_config);
 
     let rejected = tls_connection_rejected(
-        &addr,
+        proxy.addr(),
         b"GET / HTTP/1.1\r\nHost: localhost\r\n\r\n",
         &wrong_client_config,
     );

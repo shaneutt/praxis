@@ -164,9 +164,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "connection timeout config should proxy correctly");
     assert_eq!(body, "ok", "response body should match backend");
 }
@@ -199,9 +199,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "pipeline-style config should return 200");
     assert_eq!(body, "pipeline ok", "pipeline-style config should forward response");
 }
@@ -216,9 +216,9 @@ fn admin_address_none_still_proxies() {
         config.admin.address.is_none(),
         "admin address should be None when not configured"
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "proxy without admin address should return 200");
     assert_eq!(body, "no admin", "proxy without admin should forward response");
 }

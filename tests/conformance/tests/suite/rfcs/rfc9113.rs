@@ -25,10 +25,10 @@ fn rfc9113_h2_connection_header_stripped() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
-    wait_for_http2(&addr);
+    let proxy = start_proxy(&config);
+    wait_for_http2(proxy.addr());
 
-    let (response, _body) = h2c_get(&addr, "/");
+    let (response, _body) = h2c_get(proxy.addr(), "/");
     assert!(
         response.headers().get("connection").is_none(),
         "H2 response must not contain Connection header"
@@ -45,10 +45,10 @@ fn rfc9113_h2_keep_alive_header_stripped() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
-    wait_for_http2(&addr);
+    let proxy = start_proxy(&config);
+    wait_for_http2(proxy.addr());
 
-    let (response, _body) = h2c_get(&addr, "/");
+    let (response, _body) = h2c_get(proxy.addr(), "/");
     assert!(
         response.headers().get("keep-alive").is_none(),
         "H2 response must not contain Keep-Alive header"
@@ -65,10 +65,10 @@ fn rfc9113_h2_transfer_encoding_header_stripped() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
-    wait_for_http2(&addr);
+    let proxy = start_proxy(&config);
+    wait_for_http2(proxy.addr());
 
-    let (response, _body) = h2c_get(&addr, "/");
+    let (response, _body) = h2c_get(proxy.addr(), "/");
     assert!(
         response.headers().get("transfer-encoding").is_none(),
         "H2 response must not contain Transfer-Encoding header"
@@ -85,10 +85,10 @@ fn rfc9113_h2_upgrade_header_stripped() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
-    wait_for_http2(&addr);
+    let proxy = start_proxy(&config);
+    wait_for_http2(proxy.addr());
 
-    let (response, _body) = h2c_get(&addr, "/");
+    let (response, _body) = h2c_get(proxy.addr(), "/");
     assert!(
         response.headers().get("upgrade").is_none(),
         "H2 response must not contain Upgrade header"
@@ -111,10 +111,10 @@ fn rfc9113_h2_client_receives_upstream_custom_headers() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
-    wait_for_http2(&addr);
+    let proxy = start_proxy(&config);
+    wait_for_http2(proxy.addr());
 
-    let (response, body) = h2c_get(&addr, "/");
+    let (response, body) = h2c_get(proxy.addr(), "/");
     assert_eq!(
         response.status(),
         http::StatusCode::OK,

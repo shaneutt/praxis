@@ -18,16 +18,16 @@ fn spoofed_xff_does_not_bypass_per_ip_rate_limit() {
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "per_ip", 1.0, 3);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "first request should succeed");
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "second request should succeed");
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\nHost: localhost\r\nX-Forwarded-For: 10.99.99.99\r\nConnection: close\r\n\r\n",
     );
     let status = parse_status(&raw);
@@ -44,16 +44,16 @@ fn spoofed_x_real_ip_does_not_bypass_per_ip_rate_limit() {
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "per_ip", 1.0, 3);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "first request should succeed");
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "second request should succeed");
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\nHost: localhost\r\nX-Real-IP: 10.88.88.88\r\nConnection: close\r\n\r\n",
     );
     let status = parse_status(&raw);
@@ -70,16 +70,16 @@ fn spoofed_forwarded_header_does_not_bypass_per_ip_rate_limit() {
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "per_ip", 1.0, 3);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "first request should succeed");
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "second request should succeed");
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\nHost: localhost\r\nForwarded: for=10.77.77.77\r\nConnection: close\r\n\r\n",
     );
     let status = parse_status(&raw);
@@ -96,16 +96,16 @@ fn global_rate_limit_unaffected_by_xff() {
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 1.0, 3);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "first request should succeed");
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "second request should succeed");
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\nHost: localhost\r\nX-Forwarded-For: 10.66.66.66\r\nConnection: close\r\n\r\n",
     );
     let status = parse_status(&raw);
@@ -122,16 +122,16 @@ fn varying_xff_values_still_rate_limited() {
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "per_ip", 1.0, 3);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "first request should succeed");
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "second request should succeed");
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\nHost: localhost\r\nX-Forwarded-For: 1.1.1.1\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(

@@ -42,9 +42,9 @@ filter_chains:
 "#
     );
     let config = praxis_core::config::Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/api/v1/users", None);
+    let (status, body) = http_get(proxy.addr(), "/api/v1/users", None);
     assert_eq!(status, 200, "request should succeed");
     assert_eq!(body, "/users", "upstream should see stripped path");
 }
@@ -82,9 +82,9 @@ filter_chains:
 "#
     );
     let config = praxis_core::config::Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/api/items?sort=name&limit=10", None);
+    let (status, body) = http_get(proxy.addr(), "/api/items?sort=name&limit=10", None);
     assert_eq!(status, 200, "request should succeed");
     assert_eq!(
         body, "/items?sort=name&limit=10",
@@ -122,9 +122,9 @@ filter_chains:
 "#
     );
     let config = praxis_core::config::Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/users", None);
+    let (status, body) = http_get(proxy.addr(), "/users", None);
     assert_eq!(status, 200, "request should succeed");
     assert_eq!(body, "/api/v2/users", "upstream should see prefixed path");
 }
@@ -164,9 +164,9 @@ filter_chains:
 "#
     );
     let config = praxis_core::config::Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/old/resource/42", None);
+    let (status, body) = http_get(proxy.addr(), "/old/resource/42", None);
     assert_eq!(status, 200, "request should succeed");
     assert_eq!(body, "/new/resource/42", "upstream should see regex-rewritten path");
 }
@@ -211,9 +211,9 @@ filter_chains:
 "#
     );
     let config = praxis_core::config::Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/api/v1/users/42", None);
+    let (status, body) = http_get(proxy.addr(), "/api/v1/users/42", None);
     assert_eq!(status, 200, "request should succeed");
     assert_eq!(
         body, "/users/42",
@@ -254,9 +254,9 @@ filter_chains:
 "#
     );
     let config = praxis_core::config::Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/other/path", None);
+    let (status, body) = http_get(proxy.addr(), "/other/path", None);
     assert_eq!(status, 200, "request should succeed");
     assert_eq!(
         body, "/other/path",

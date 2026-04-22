@@ -19,10 +19,10 @@ fn single_chunk_body_proxied() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Transfer-Encoding: chunked\r\n\
@@ -44,10 +44,10 @@ fn multiple_chunks_proxied() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Transfer-Encoding: chunked\r\n\
@@ -78,10 +78,10 @@ fn empty_chunked_body_returns_200() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Transfer-Encoding: chunked\r\n\
@@ -109,10 +109,10 @@ fn chunked_body_with_trailers_does_not_crash() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Transfer-Encoding: chunked\r\n\
@@ -139,10 +139,10 @@ fn recovery_after_chunked_request() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Transfer-Encoding: chunked\r\n\
@@ -156,7 +156,7 @@ fn recovery_after_chunked_request() {
     let status = parse_status(&raw);
     assert_eq!(status, 200, "chunked POST should return 200");
 
-    let (status2, body2) = http_get(&addr, "/", None);
+    let (status2, body2) = http_get(proxy.addr(), "/", None);
     assert_eq!(status2, 200, "normal GET after chunked POST should return 200");
     assert_eq!(
         body2, "alive",

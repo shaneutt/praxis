@@ -18,10 +18,10 @@ fn duplicate_host_headers_do_not_crash() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Host: localhost\r\n\
@@ -41,10 +41,10 @@ fn conflicting_host_headers_rejected_or_safe() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: victim.com\r\n\
          Host: attacker.com\r\n\
@@ -61,10 +61,10 @@ fn host_port_mismatch_handled_gracefully() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost:9999\r\n\
          Connection: close\r\n\r\n",
@@ -81,10 +81,10 @@ fn empty_host_header_handled_gracefully() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: \r\n\
          Connection: close\r\n\r\n",
@@ -101,10 +101,10 @@ fn host_with_special_characters_handled() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost; DROP TABLE users\r\n\
          Connection: close\r\n\r\n",
@@ -150,10 +150,10 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: victim.com\r\n\
          Host: attacker.com\r\n\

@@ -23,11 +23,11 @@ fn bench_production_pipeline_get() {
     let proxy_port = free_port();
     let yaml = production_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let cfg = BenchConfig::new("production_pipeline_get (7 filters, c=8)")
         .total(3000)
         .concurrency(8);
-    let result = run_get_benchmark(&cfg, &addr, "/api/users");
+    let result = run_get_benchmark(&cfg, proxy.addr(), "/api/users");
     assert_eq!(result.errors, 0, "all requests should succeed");
     report_results(&result);
     assert_performance(&result, 300.0, 500.0);
@@ -39,13 +39,13 @@ fn bench_production_pipeline_post() {
     let proxy_port = free_port();
     let yaml = production_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let payload = "x".repeat(512);
     let body = format!(r#"{{"user":"bench","action":"create","payload":"{payload}"}}"#);
     let cfg = BenchConfig::new("production_pipeline_post (7 filters, ~600B JSON, c=8)")
         .total(2000)
         .concurrency(8);
-    let result = run_benchmark_with_body(&cfg, &addr, "/api/users", &body);
+    let result = run_benchmark_with_body(&cfg, proxy.addr(), "/api/users", &body);
     assert_eq!(result.errors, 0, "all requests should succeed");
     report_results(&result);
     assert_performance(&result, 200.0, 500.0);
@@ -57,7 +57,7 @@ fn bench_production_pipeline_mixed() {
     let proxy_port = free_port();
     let yaml = production_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let post_body = "x".repeat(1024);
     let post_body = Arc::new(post_body);
     let cfg = BenchConfig::new("production_pipeline_mixed (GET+POST, c=8)")
@@ -65,7 +65,7 @@ fn bench_production_pipeline_mixed() {
         .concurrency(8);
 
     let pb = Arc::clone(&post_body);
-    let result = run_benchmark(&cfg, &addr, move |a| {
+    let result = run_benchmark(&cfg, proxy.addr(), move |a| {
         use std::sync::atomic::{AtomicU64, Ordering};
         static COUNTER: AtomicU64 = AtomicU64::new(0);
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);

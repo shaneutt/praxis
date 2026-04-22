@@ -55,16 +55,16 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy(&config, &client_config);
+    let proxy = start_tls_proxy(&config, &client_config);
 
-    let (status, body) = https_get(&addr, "/", &client_config);
+    let (status, body) = https_get(proxy.addr(), "/", &client_config);
     assert_eq!(status, 200, "TLS-terminated proxy should return 200");
     assert_eq!(
         body, "tls-terminated",
         "TLS-terminated proxy should forward backend body"
     );
 
-    let peer_der = get_peer_cert_der(&addr, &client_config, "localhost");
+    let peer_der = get_peer_cert_der(proxy.addr(), &client_config, "localhost");
     assert_eq!(
         peer_der, certs.server_cert_der,
         "listener should present the configured server certificate"
@@ -116,15 +116,15 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy(&config, &client_config);
+    let proxy = start_tls_proxy(&config, &client_config);
 
-    let (_, api_body) = https_get(&addr, "/api/users", &client_config);
+    let (_, api_body) = https_get(proxy.addr(), "/api/users", &client_config);
     assert_eq!(api_body, "api-response", "TLS proxy should route /api/ to api backend");
 
-    let (_, web_body) = https_get(&addr, "/index.html", &client_config);
+    let (_, web_body) = https_get(proxy.addr(), "/index.html", &client_config);
     assert_eq!(web_body, "web-response", "TLS proxy should route / to web backend");
 
-    let peer_der = get_peer_cert_der(&addr, &client_config, "localhost");
+    let peer_der = get_peer_cert_der(proxy.addr(), &client_config, "localhost");
     assert_eq!(
         peer_der, certs.server_cert_der,
         "listener should present the configured server certificate"
@@ -209,9 +209,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy(&config, &client_config);
+    let proxy = start_tls_proxy(&config, &client_config);
 
-    let (status, body) = https_get(&addr, "/", &client_config);
+    let (status, body) = https_get(proxy.addr(), "/", &client_config);
     assert_eq!(
         status, 200,
         "proxy with no upstream_sni should still route via Host header fallback"
@@ -250,9 +250,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).expect("valid YAML config");
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 200,
         "upstream TLS origination should return 200 (status-only: upstream cert not observable from client)"
@@ -299,13 +299,13 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy(&config, &client_config);
+    let proxy = start_tls_proxy(&config, &client_config);
 
-    let (status, body) = https_get(&addr, "/", &client_config);
+    let (status, body) = https_get(proxy.addr(), "/", &client_config);
     assert_eq!(status, 200, "both-side TLS proxy should return 200");
     assert_eq!(body, "both-tls-ok", "both-side TLS should forward backend body");
 
-    let peer_der = get_peer_cert_der(&addr, &client_config, "localhost");
+    let peer_der = get_peer_cert_der(proxy.addr(), &client_config, "localhost");
     assert_eq!(
         peer_der, certs.server_cert_der,
         "listener should present the configured server certificate"
@@ -355,14 +355,14 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy_no_wait(&config);
-    wait_for_https(&addr, &client_config);
+    let proxy = start_tls_proxy_no_wait(&config);
+    wait_for_https(proxy.addr(), &client_config);
 
-    let (status, body) = https_get(&addr, "/", &client_config);
+    let (status, body) = https_get(proxy.addr(), "/", &client_config);
     assert_eq!(status, 200, "mTLS require with valid client cert should return 200");
     assert_eq!(body, "mtls-require-ok", "mTLS require should forward backend body");
 
-    let peer_der = get_peer_cert_der(&addr, &client_config, "localhost");
+    let peer_der = get_peer_cert_der(proxy.addr(), &client_config, "localhost");
     assert_eq!(
         peer_der, certs.server_cert_der,
         "mTLS listener should present the configured server certificate"
@@ -413,11 +413,11 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy_no_wait(&config);
-    wait_for_https(&addr, &mtls_client_config);
+    let proxy = start_tls_proxy_no_wait(&config);
+    wait_for_https(proxy.addr(), &mtls_client_config);
 
     let no_cert_ref = &no_cert_config;
-    let addr_ref = &addr;
+    let addr_ref = proxy.addr();
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| https_get(addr_ref, "/", no_cert_ref)));
 
     assert!(
@@ -468,13 +468,13 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy(&config, &no_cert_config);
+    let proxy = start_tls_proxy(&config, &no_cert_config);
 
-    let (status, body) = https_get(&addr, "/", &no_cert_config);
+    let (status, body) = https_get(proxy.addr(), "/", &no_cert_config);
     assert_eq!(status, 200, "mTLS request mode without cert should succeed");
     assert_eq!(body, "mtls-request-ok", "mTLS request mode should forward backend body");
 
-    let peer_der = get_peer_cert_der(&addr, &no_cert_config, "localhost");
+    let peer_der = get_peer_cert_der(proxy.addr(), &no_cert_config, "localhost");
     assert_eq!(
         peer_der, certs.server_cert_der,
         "mTLS request-mode listener should present the configured server certificate"
@@ -519,9 +519,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).expect("valid YAML config");
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 200,
         "upstream mTLS should return 200 (status-only: proxy's client cert not observable from test client)"
@@ -560,9 +560,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).expect("valid YAML config");
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 200,
         "upstream TLS with verify disabled should return 200 (status-only: upstream cert not observable from client)"
@@ -609,9 +609,9 @@ filter_chains:
 
     drop(proxy_certs);
     let config = Config::from_yaml(&yaml).expect("valid YAML config");
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _body) = http_get(&addr, "/", None);
+    let (status, _body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 502, "upstream TLS verify with untrusted cert should return 502");
 }
 
@@ -647,9 +647,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).expect("valid YAML config");
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 200,
         "upstream TLS with explicit SNI should return 200 (status-only: SNI sent to upstream not observable)"
@@ -688,9 +688,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).expect("valid YAML config");
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 200,
         "upstream TLS with IP address should return 200 (status-only: empty SNI not observable from client)"
@@ -868,9 +868,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).expect("valid YAML config");
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 502,
         "upstream TLS verify without CA file should fail with 502 (proves CA file config matters)"
@@ -945,16 +945,16 @@ filter_chains:
         "last cert should be marked as default"
     );
 
-    let addr = start_tls_proxy(&config, &client_config);
+    let proxy = start_tls_proxy(&config, &client_config);
 
-    let (status, body) = https_get(&addr, "/", &client_config);
+    let (status, body) = https_get(proxy.addr(), "/", &client_config);
     assert_eq!(
         status, 200,
         "multi-cert proxy should serve traffic via primary certificate"
     );
     assert_eq!(body, "multi-cert-ok", "multi-cert proxy should forward backend body");
 
-    let peer_der = get_peer_cert_der(&addr, &client_config, "localhost");
+    let peer_der = get_peer_cert_der(proxy.addr(), &client_config, "localhost");
     assert_eq!(
         peer_der, certs.server_cert_der,
         "multi-cert listener should present the configured server certificate"
@@ -1000,13 +1000,15 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy(&config, &tls13_client);
+    let proxy = start_tls_proxy(&config, &tls13_client);
 
-    let (status, _) = https_get(&addr, "/", &tls13_client);
+    let (status, _) = https_get(proxy.addr(), "/", &tls13_client);
     assert_eq!(status, 200, "TLS 1.3 client should succeed against tls13-only listener");
 
     let tls12_client = build_tls12_only_client(&certs);
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| https_get(&addr, "/", &tls12_client)));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        https_get(proxy.addr(), "/", &tls12_client)
+    }));
     assert!(
         result.is_err(),
         "TLS 1.2-only client should be rejected by tls13-only listener"
@@ -1045,9 +1047,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).expect("valid YAML config");
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 502,
         "proxy without client cert should get 502 from mTLS backend"
@@ -1088,9 +1090,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).expect("valid YAML config");
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "per-cluster CA should verify upstream and return 200");
     assert_eq!(body, "per-cluster-ca-ok", "per-cluster CA should forward backend body");
 }
@@ -1127,9 +1129,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).expect("valid YAML config");
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 502,
         "upstream TLS verify without per-cluster CA should fail with 502 (proves CA config matters)"
@@ -1183,16 +1185,16 @@ filter_chains:
     let config = Config::from_yaml(&yaml).unwrap();
 
     let dual_trust = dual_ca_client_config(&alpha_certs, &beta_certs);
-    let addr = start_tls_proxy_no_wait(&config);
-    wait_for_sni_tls(&addr, &dual_trust, "alpha.localhost");
+    let proxy = start_tls_proxy_no_wait(&config);
+    wait_for_sni_tls(proxy.addr(), &dual_trust, "alpha.localhost");
 
-    let alpha_peer_der = get_peer_cert_der(&addr, &dual_trust, "alpha.localhost");
+    let alpha_peer_der = get_peer_cert_der(proxy.addr(), &dual_trust, "alpha.localhost");
     assert_eq!(
         alpha_peer_der, alpha_certs.server_cert_der,
         "SNI alpha.localhost should select the alpha certificate"
     );
 
-    let beta_peer_der = get_peer_cert_der(&addr, &dual_trust, "beta.localhost");
+    let beta_peer_der = get_peer_cert_der(proxy.addr(), &dual_trust, "beta.localhost");
     assert_eq!(
         beta_peer_der, beta_certs.server_cert_der,
         "SNI beta.localhost (unmatched) should select the default (beta) certificate"
@@ -1243,21 +1245,21 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy(&config, &tls13_client);
+    let proxy = start_tls_proxy(&config, &tls13_client);
 
-    let (status, body) = https_get(&addr, "/", &tls13_client);
+    let (status, body) = https_get(proxy.addr(), "/", &tls13_client);
     assert_eq!(status, 200, "TLS 1.3 client should succeed against tls12-min listener");
     assert_eq!(body, "tls12-min-ok", "TLS 1.3 should forward backend body");
 
     let tls12_client = build_tls12_only_client(&certs);
-    let (status12, body12) = https_get(&addr, "/", &tls12_client);
+    let (status12, body12) = https_get(proxy.addr(), "/", &tls12_client);
     assert_eq!(
         status12, 200,
         "TLS 1.2 client should succeed against tls12-min listener"
     );
     assert_eq!(body12, "tls12-min-ok", "TLS 1.2 should forward backend body");
 
-    let peer_der = get_peer_cert_der(&addr, &tls13_client, "localhost");
+    let peer_der = get_peer_cert_der(proxy.addr(), &tls13_client, "localhost");
     assert_eq!(
         peer_der, certs.server_cert_der,
         "tls12-min listener should present the configured server certificate"
@@ -1364,14 +1366,14 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy_no_wait(&config);
-    wait_for_https(&addr, &client_config);
+    let proxy = start_tls_proxy_no_wait(&config);
+    wait_for_https(proxy.addr(), &client_config);
 
-    let (status, body) = https_get(&addr, "/", &client_config);
+    let (status, body) = https_get(proxy.addr(), "/", &client_config);
     assert_eq!(status, 200, "full mTLS end-to-end should return 200");
     assert_eq!(body, "full-mtls-ok", "full mTLS should forward backend body");
 
-    let peer_der = get_peer_cert_der(&addr, &client_config, "localhost");
+    let peer_der = get_peer_cert_der(proxy.addr(), &client_config, "localhost");
     assert_eq!(
         peer_der, listener_certs.server_cert_der,
         "full mTLS listener should present the listener certificate, not the upstream certificate"
@@ -1432,22 +1434,22 @@ filter_chains:
     let config = Config::from_yaml(&yaml).unwrap();
 
     let triple_trust = triple_ca_client_config(&alpha_certs, &beta_certs, &default_certs);
-    let addr = start_tls_proxy_no_wait(&config);
-    wait_for_sni_tls(&addr, &triple_trust, "alpha.test");
+    let proxy = start_tls_proxy_no_wait(&config);
+    wait_for_sni_tls(proxy.addr(), &triple_trust, "alpha.test");
 
-    let alpha_peer_der = get_peer_cert_der(&addr, &triple_trust, "alpha.test");
+    let alpha_peer_der = get_peer_cert_der(proxy.addr(), &triple_trust, "alpha.test");
     assert_eq!(
         alpha_peer_der, alpha_certs.server_cert_der,
         "SNI alpha.test should present the alpha certificate"
     );
 
-    let beta_peer_der = get_peer_cert_der(&addr, &triple_trust, "beta.test");
+    let beta_peer_der = get_peer_cert_der(proxy.addr(), &triple_trust, "beta.test");
     assert_eq!(
         beta_peer_der, beta_certs.server_cert_der,
         "SNI beta.test should present the beta certificate"
     );
 
-    let fallback_peer_der = get_peer_cert_der(&addr, &triple_trust, "default.test");
+    let fallback_peer_der = get_peer_cert_der(proxy.addr(), &triple_trust, "default.test");
     assert_eq!(
         fallback_peer_der, default_certs.server_cert_der,
         "fallback SNI should present the default certificate"
@@ -1511,16 +1513,16 @@ filter_chains:
 
     let no_verify_trust = no_hostname_verify_client_config(&[&alpha_certs.ca_cert_der, &default_certs.ca_cert_der]);
     let alpha_trust = dual_ca_client_config(&alpha_certs, &default_certs);
-    let addr = start_tls_proxy_no_wait(&config);
-    wait_for_sni_tls(&addr, &alpha_trust, "alpha.test");
+    let proxy = start_tls_proxy_no_wait(&config);
+    wait_for_sni_tls(proxy.addr(), &alpha_trust, "alpha.test");
 
-    let alpha_der = get_peer_cert_der(&addr, &alpha_trust, "alpha.test");
+    let alpha_der = get_peer_cert_der(proxy.addr(), &alpha_trust, "alpha.test");
     assert_eq!(
         alpha_der, alpha_certs.server_cert_der,
         "SNI alpha.test should present the alpha certificate"
     );
 
-    let unknown_der = get_peer_cert_der(&addr, &no_verify_trust, "unknown.test");
+    let unknown_der = get_peer_cert_der(proxy.addr(), &no_verify_trust, "unknown.test");
     assert_eq!(
         unknown_der, default_certs.server_cert_der,
         "unknown SNI should fall back to the default certificate"
@@ -1581,11 +1583,11 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy_no_wait(&config);
-    wait_for_https(&addr, &valid_client_config);
+    let proxy = start_tls_proxy_no_wait(&config);
+    wait_for_https(proxy.addr(), &valid_client_config);
 
     let wrong_ref = &wrong_ca_client_config;
-    let addr_ref = &addr;
+    let addr_ref = proxy.addr();
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| https_get(addr_ref, "/", wrong_ref)));
     assert!(
         result.is_err(),
@@ -1645,10 +1647,10 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy_no_wait(&config);
-    wait_for_sni_tls(&addr, &client_config, "alpha.mtls");
+    let proxy = start_tls_proxy_no_wait(&config);
+    wait_for_sni_tls(proxy.addr(), &client_config, "alpha.mtls");
 
-    let alpha_peer_der = get_peer_cert_der(&addr, &client_config, "alpha.mtls");
+    let alpha_peer_der = get_peer_cert_der(proxy.addr(), &client_config, "alpha.mtls");
     assert_eq!(
         alpha_peer_der, alpha_certs.server_cert_der,
         "SNI alpha.mtls should present the alpha cert even with mTLS"
@@ -1703,16 +1705,16 @@ filter_chains:
     let config = Config::from_yaml(&yaml).unwrap();
 
     let dual_trust = dual_ca_client_config(&alpha_certs, &beta_certs);
-    let addr = start_tls_proxy_no_wait(&config);
-    wait_for_sni_tls(&addr, &dual_trust, "alpha.tls13");
+    let proxy = start_tls_proxy_no_wait(&config);
+    wait_for_sni_tls(proxy.addr(), &dual_trust, "alpha.tls13");
 
-    let alpha_peer_der = get_peer_cert_der(&addr, &dual_trust, "alpha.tls13");
+    let alpha_peer_der = get_peer_cert_der(proxy.addr(), &dual_trust, "alpha.tls13");
     assert_eq!(
         alpha_peer_der, alpha_certs.server_cert_der,
         "SNI alpha.tls13 over TLS 1.3 should present the alpha cert"
     );
 
-    let beta_peer_der = get_peer_cert_der(&addr, &dual_trust, "beta.tls13");
+    let beta_peer_der = get_peer_cert_der(proxy.addr(), &dual_trust, "beta.tls13");
     assert_eq!(
         beta_peer_der, beta_certs.server_cert_der,
         "SNI beta.tls13 (unmatched) over TLS 1.3 should present the default cert"
@@ -1763,14 +1765,14 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_tls_proxy_no_wait(&config);
-    wait_for_https(&addr, &client_config);
+    let proxy = start_tls_proxy_no_wait(&config);
+    wait_for_https(proxy.addr(), &client_config);
 
-    let (status, body) = https_get(&addr, "/", &client_config);
+    let (status, body) = https_get(proxy.addr(), "/", &client_config);
     assert_eq!(status, 200, "mTLS require with TLS 1.3 should return 200");
     assert_eq!(body, "mtls-tls13-ok", "mTLS + TLS 1.3 should forward backend body");
 
-    let peer_der = get_peer_cert_der(&addr, &client_config, "localhost");
+    let peer_der = get_peer_cert_der(proxy.addr(), &client_config, "localhost");
     assert_eq!(
         peer_der, certs.server_cert_der,
         "mTLS + TLS 1.3 listener should present the configured server certificate"

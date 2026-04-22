@@ -20,9 +20,9 @@ fn conditional_filters() {
         proxy_port,
         HashMap::from([("127.0.0.1:3000", backend_port)]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST /api/items HTTP/1.1\r\n\
          Host: localhost\r\n\
          Content-Length: 0\r\n\
@@ -35,7 +35,7 @@ fn conditional_filters() {
     );
     assert_eq!(parse_body(&raw), "ok", "POST response body should match backend");
     let raw_get = http_send(
-        &addr,
+        proxy.addr(),
         "GET /api/items HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close\r\n\r\n",

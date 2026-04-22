@@ -18,10 +18,10 @@ fn bench_simple_proxy_serial() {
     let proxy_port = free_port();
     let yaml = praxis_test_utils::simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let cfg = BenchConfig::new("simple_proxy_serial").total(1000).concurrency(1);
 
-    let result = run_get_benchmark(&cfg, &addr, "/");
+    let result = run_get_benchmark(&cfg, proxy.addr(), "/");
     assert_eq!(result.errors, 0, "all requests should succeed");
     report_results(&result);
     assert_performance(&result, 100.0, 500.0);
@@ -33,10 +33,10 @@ fn bench_simple_proxy_concurrent() {
     let proxy_port = free_port();
     let yaml = praxis_test_utils::simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let cfg = BenchConfig::new("simple_proxy_concurrent").total(2000).concurrency(8);
-    let result = run_get_benchmark(&cfg, &addr, "/");
+    let result = run_get_benchmark(&cfg, proxy.addr(), "/");
     assert_eq!(result.errors, 0, "all requests should succeed");
     report_results(&result);
     assert_performance(&result, 500.0, 500.0);
@@ -48,12 +48,12 @@ fn bench_simple_proxy_high_concurrency() {
     let proxy_port = free_port();
     let yaml = praxis_test_utils::simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let cfg = BenchConfig::new("simple_proxy_high_concurrency")
         .total(4000)
         .concurrency(16);
-    let result = run_get_benchmark(&cfg, &addr, "/");
+    let result = run_get_benchmark(&cfg, proxy.addr(), "/");
     assert_eq!(result.errors, 0, "all requests should succeed");
     report_results(&result);
     assert_performance(&result, 500.0, 500.0);

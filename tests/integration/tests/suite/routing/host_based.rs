@@ -46,13 +46,13 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", Some("api.example.com"));
+    let (status, body) = http_get(proxy.addr(), "/", Some("api.example.com"));
     assert_eq!(status, 200, "api.example.com host should return 200");
     assert_eq!(body, "api host", "api.example.com should route to api backend");
 
-    let (status, body) = http_get(&addr, "/", Some("other.com"));
+    let (status, body) = http_get(proxy.addr(), "/", Some("other.com"));
     assert_eq!(status, 200, "other.com host should return 200");
     assert_eq!(
         body, "default host",

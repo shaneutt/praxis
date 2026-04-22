@@ -20,10 +20,10 @@ fn bare_dotdot_path_normalized_or_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let request = "GET /../etc/passwd HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
-    let raw = http_send(&addr, request);
+    let raw = http_send(proxy.addr(), request);
     let status = parse_status(&raw);
 
     assert!(
@@ -39,10 +39,10 @@ fn nested_dotdot_path_normalized_or_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let request = "GET /safe/../../etc/passwd HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
-    let raw = http_send(&addr, request);
+    let raw = http_send(proxy.addr(), request);
     let status = parse_status(&raw);
 
     assert!(
@@ -58,10 +58,10 @@ fn percent_encoded_dots_preserved_not_decoded() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let request = "GET /%2e%2e/%2e%2e/etc/passwd HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
-    let raw = http_send(&addr, request);
+    let raw = http_send(proxy.addr(), request);
     let status = parse_status(&raw);
     let body = parse_body(&raw);
 
@@ -84,10 +84,10 @@ fn mixed_encoding_traversal_handled_safely() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let request = "GET /..%2f..%2fetc/passwd HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
-    let raw = http_send(&addr, request);
+    let raw = http_send(proxy.addr(), request);
     let status = parse_status(&raw);
     let body = parse_body(&raw);
 
@@ -110,10 +110,10 @@ fn path_with_null_byte_rejected_or_sanitized() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let request = "GET /file%00.txt HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
-    let raw = http_send(&addr, request);
+    let raw = http_send(proxy.addr(), request);
     let status = parse_status(&raw);
 
     assert!(
@@ -129,9 +129,9 @@ fn double_slash_path_forwarded_intact() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "//etc/passwd", None);
+    let (status, body) = http_get(proxy.addr(), "//etc/passwd", None);
     assert_eq!(status, 200, "double-slash path should not crash the proxy");
     assert!(
         !body.contains("/../"),

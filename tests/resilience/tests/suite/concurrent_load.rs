@@ -21,11 +21,11 @@ fn concurrent_requests_all_succeed() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let num_threads = 10;
     let barrier = Arc::new(Barrier::new(num_threads));
-    let addr = Arc::new(addr);
+    let addr = Arc::new(proxy.addr().to_owned());
 
     let handles: Vec<_> = (0..num_threads)
         .map(|_| {
@@ -52,11 +52,11 @@ fn concurrent_requests_to_dead_backend_all_return_502() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, dead_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let num_threads = 10;
     let barrier = Arc::new(Barrier::new(num_threads));
-    let addr = Arc::new(addr);
+    let addr = Arc::new(proxy.addr().to_owned());
 
     let handles: Vec<_> = (0..num_threads)
         .map(|_| {
@@ -82,10 +82,10 @@ fn sequential_burst_all_succeed() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     for i in 0..50 {
-        let (status, body) = http_get(&addr, "/", None);
+        let (status, body) = http_get(proxy.addr(), "/", None);
         assert_eq!(status, 200, "burst request {i} should return 200");
         assert_eq!(body, "burst-ok", "burst request {i} body mismatch");
     }
@@ -124,11 +124,11 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let num_threads = 10;
     let barrier = Arc::new(Barrier::new(num_threads));
-    let addr = Arc::new(addr);
+    let addr = Arc::new(proxy.addr().to_owned());
 
     let handles: Vec<_> = (0..num_threads)
         .map(|i| {
@@ -186,11 +186,11 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let num_threads = 20;
     let barrier = Arc::new(Barrier::new(num_threads));
-    let addr = Arc::new(addr);
+    let addr = Arc::new(proxy.addr().to_owned());
 
     let handles: Vec<_> = (0..num_threads)
         .map(|_| {

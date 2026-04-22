@@ -46,9 +46,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get_v6(&addr, "/");
+    let (status, body) = http_get_v6(proxy.addr(), "/");
     assert_eq!(status, 200, "IPv6 listener should return 200");
     assert_eq!(body, "ipv6-listener-ok", "IPv6 listener should proxy to IPv4 backend");
 }
@@ -88,9 +88,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "proxy should reach IPv6 upstream and return 200");
     assert_eq!(body, "ipv6-upstream-ok", "response body should come from IPv6 backend");
 }
@@ -133,9 +133,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get_v6(&addr, "/");
+    let (status, body) = http_get_v6(proxy.addr(), "/");
     assert_eq!(status, 200, "::1 should be allowed by ::1/128 ACL");
     assert_eq!(body, "ipv6-acl-ok", "allowed IPv6 request should return backend body");
 }
@@ -176,9 +176,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get_v6(&addr, "/");
+    let (status, _) = http_get_v6(proxy.addr(), "/");
     assert_eq!(status, 403, "::1 should be denied by ::1/128 deny rule");
 }
 
@@ -216,9 +216,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get_v6(&addr, "/");
+    let (status, body) = http_get_v6(proxy.addr(), "/");
     assert_eq!(status, 200, "IPv6 listener with access_log should return 200");
     assert_eq!(
         body, "logged-v6",

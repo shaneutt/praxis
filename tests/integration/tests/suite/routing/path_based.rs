@@ -45,13 +45,13 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/api/users", None);
+    let (status, body) = http_get(proxy.addr(), "/api/users", None);
     assert_eq!(status, 200, "/api/ path should return 200");
     assert_eq!(body, "api response", "/api/ should route to api backend");
 
-    let (status, body) = http_get(&addr, "/index.html", None);
+    let (status, body) = http_get(proxy.addr(), "/index.html", None);
     assert_eq!(status, 200, "default path should return 200");
     assert_eq!(body, "web response", "default path should route to web backend");
 }
@@ -84,8 +84,8 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _body) = http_get(&addr, "/other", None);
+    let (status, _body) = http_get(proxy.addr(), "/other", None);
     assert_eq!(status, 404, "unmatched route should return 404");
 }

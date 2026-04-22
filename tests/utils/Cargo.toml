@@ -22,6 +22,8 @@ rustls = { workspace = true }
 rustls-pemfile = { workspace = true }
 serde_yaml = { workspace = true }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["rt", "net", "io-util", "time"] }
+async-trait = { workspace = true }
+pingora-core = { workspace = true }
+tokio = { workspace = true, features = ["rt", "net", "io-util", "time", "sync"] }
 tracing = { workspace = true }
 tokio-rustls = { workspace = true }

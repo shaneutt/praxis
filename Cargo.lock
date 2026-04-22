@@ -1888,8 +1888,10 @@ dependencies = [
 name = "praxis-test-utils"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "h2",
  "http",
+ "pingora-core",
  "praxis",
  "praxis-proxy-core",
  "praxis-proxy-filter",

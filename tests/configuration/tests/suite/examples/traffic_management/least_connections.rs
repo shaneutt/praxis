@@ -26,12 +26,12 @@ fn least_connections() {
             ("127.0.0.1:3003", port_c),
         ]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let total = 30u32;
     let mut counts: HashMap<String, u32> = HashMap::new();
     for _ in 0..total {
-        let (status, body) = http_get(&addr, "/", None);
+        let (status, body) = http_get(proxy.addr(), "/", None);
         assert_eq!(status, 200, "least-conn request should return 200");
         *counts.entry(body).or_default() += 1;
     }
@@ -62,9 +62,10 @@ fn least_connections_concurrent() {
             ("127.0.0.1:3003", port_c),
         ]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let total = 30;
+    let addr = proxy.addr().to_owned();
     let handles: Vec<_> = (0..total)
         .map(|_| {
             let addr = addr.clone();

@@ -33,10 +33,10 @@ fn fetch_3_2_3_preflight_success_includes_required_headers() {
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "OPTIONS /api HTTP/1.1\r\nHost: localhost\r\nOrigin: https://app.example.com\r\nAccess-Control-Request-Method: PUT\r\nAccess-Control-Request-Headers: Content-Type\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(parse_status(&raw), 204, "successful preflight must return 204");
@@ -69,10 +69,10 @@ fn fetch_3_2_3_preflight_disallowed_method_omits_acao() {
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "OPTIONS /api HTTP/1.1\r\nHost: localhost\r\nOrigin: https://app.example.com\r\nAccess-Control-Request-Method: PATCH\r\nConnection: close\r\n\r\n",
     );
     assert!(
@@ -91,10 +91,10 @@ fn fetch_3_2_4_preflight_includes_max_age() {
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "OPTIONS /api HTTP/1.1\r\nHost: localhost\r\nOrigin: https://app.example.com\r\nAccess-Control-Request-Method: GET\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(parse_status(&raw), 204, "successful preflight must return 204");
@@ -115,10 +115,10 @@ fn fetch_3_2_5_simple_request_reflects_allowed_origin() {
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET /api HTTP/1.1\r\nHost: localhost\r\nOrigin: https://app.example.com\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(parse_status(&raw), 200, "simple request should return 200");
@@ -140,10 +140,10 @@ fn fetch_3_2_5_simple_request_omits_acao_for_disallowed_origin() {
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET /api HTTP/1.1\r\nHost: localhost\r\nOrigin: https://evil.com\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(parse_status(&raw), 200, "disallowed origin still proxies upstream");
@@ -164,10 +164,10 @@ fn fetch_3_2_5_vary_origin_on_non_cors_responses() {
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET /api HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(parse_status(&raw), 200, "non-CORS request should return 200");
@@ -190,10 +190,10 @@ fn fetch_3_2_5_credentials_on_simple_request() {
     let proxy_port = free_port();
     let yaml = cors_credentials_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET /api HTTP/1.1\r\nHost: localhost\r\nOrigin: https://app.example.com\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(parse_status(&raw), 200, "credentialed simple request should return 200");
@@ -221,10 +221,10 @@ fn fetch_3_2_5_expose_headers_on_actual_request() {
     let proxy_port = free_port();
     let yaml = cors_expose_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET /api HTTP/1.1\r\nHost: localhost\r\nOrigin: https://app.example.com\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(
@@ -249,10 +249,10 @@ fn fetch_3_2_5_wildcard_origin_returns_star() {
     let proxy_port = free_port();
     let yaml = cors_wildcard_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET /api HTTP/1.1\r\nHost: localhost\r\nOrigin: https://random-site.org\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(parse_status(&raw), 200, "wildcard origin request should return 200");
@@ -275,10 +275,10 @@ fn fetch_3_2_3_private_network_access_preflight() {
     let proxy_port = free_port();
     let yaml = cors_pna_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "OPTIONS /api HTTP/1.1\r\n\
          Host: localhost\r\n\
          Origin: https://app.example.com\r\n\
@@ -304,10 +304,10 @@ fn fetch_3_2_3_reject_mode_disallowed_origin_returns_403() {
     let proxy_port = free_port();
     let yaml = cors_reject_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "OPTIONS /api HTTP/1.1\r\n\
          Host: localhost\r\n\
          Origin: https://evil.com\r\n\
@@ -332,10 +332,10 @@ fn cors_successful_preflight_includes_vary_headers() {
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "OPTIONS /api HTTP/1.1\r\n\
          Host: localhost\r\n\
          Origin: https://app.example.com\r\n\

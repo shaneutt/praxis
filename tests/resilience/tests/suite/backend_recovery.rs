@@ -49,9 +49,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "initial request should succeed");
     assert_eq!(body, "version-1", "should get version-1 response");
 
@@ -59,7 +59,7 @@ filter_chains:
 
     let mut saw_v2 = false;
     for i in 0..10 {
-        let (status, body) = http_get(&addr, "/", None);
+        let (status, body) = http_get(proxy.addr(), "/", None);
         if status == 200 && body == "version-2" {
             saw_v2 = true;
             break;
@@ -100,15 +100,15 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "pre-outage request should succeed");
 
     backend.stop();
 
     for i in 0..3 {
-        let (status, _) = http_get(&addr, "/", None);
+        let (status, _) = http_get(proxy.addr(), "/", None);
         assert_eq!(status, 502, "request {i} during outage should return 502");
     }
 
@@ -116,7 +116,7 @@ filter_chains:
 
     let mut recovered = false;
     for i in 0..10 {
-        let (status, body) = http_get(&addr, "/", None);
+        let (status, body) = http_get(proxy.addr(), "/", None);
         if status == 200 && body == "after-outage" {
             recovered = true;
             break;
@@ -158,12 +158,12 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let mut successes = 0u32;
     let mut failures = 0u32;
     for _ in 0..20 {
-        let (status, body) = http_get(&addr, "/", None);
+        let (status, body) = http_get(proxy.addr(), "/", None);
         match status {
             200 => {
                 assert_eq!(body, "live-endpoint", "200 should come from the live endpoint");
@@ -209,10 +209,10 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     for i in 0..5 {
-        let (status, _) = http_get(&addr, "/", None);
+        let (status, _) = http_get(proxy.addr(), "/", None);
         assert_eq!(status, 502, "request {i} with all endpoints dead should return 502");
     }
 }

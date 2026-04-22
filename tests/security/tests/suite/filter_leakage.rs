@@ -16,10 +16,10 @@ fn forwarded_headers_not_leaked_to_client() {
     let proxy_port = free_port();
     let yaml = fwd_only_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close\r\n\r\n",
@@ -45,10 +45,10 @@ fn headers_request_add_not_leaked_to_client() {
     let proxy_port = free_port();
     let yaml = headers_request_add_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close\r\n\r\n",
@@ -66,10 +66,10 @@ fn request_id_not_leaked_to_client() {
     let proxy_port = free_port();
     let yaml = request_id_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close\r\n\r\n",
@@ -87,10 +87,10 @@ fn combined_request_headers_not_leaked_to_client() {
     let proxy_port = free_port();
     let yaml = combined_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close\r\n\r\n",

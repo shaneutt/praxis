@@ -25,9 +25,9 @@ fn dead_backend_returns_502() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, dead_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 502, "dead backend should return 502");
 }
 
@@ -37,9 +37,9 @@ fn dead_backend_post_returns_502() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, dead_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_post(&addr, "/", "request body");
+    let (status, _) = http_post(proxy.addr(), "/", "request body");
     assert_eq!(status, 502, "POST to dead backend should return 502");
 }
 
@@ -49,9 +49,9 @@ fn connection_drop_backend_returns_502() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, drop_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 502, "backend that drops connection should produce 502");
 }
 
@@ -61,9 +61,9 @@ fn partial_response_backend_returns_502() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, partial_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 502, "backend sending partial response should produce 502");
 }
 
@@ -73,10 +73,10 @@ fn slow_backend_with_read_timeout_returns_502() {
     let proxy_port = free_port();
     let yaml = read_timeout_proxy_yaml(proxy_port, slow_port, 500);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let start = Instant::now();
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     let elapsed = start.elapsed();
 
     assert_eq!(status, 502, "slow backend with read timeout should return 502");
@@ -92,9 +92,9 @@ fn slow_backend_with_timeout_filter_returns_504() {
     let proxy_port = free_port();
     let yaml = timeout_filter_yaml(proxy_port, slow_port, 100);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 504,
         "backend slower than timeout filter threshold should return 504"
@@ -107,9 +107,9 @@ fn fast_backend_with_timeout_filter_succeeds() {
     let proxy_port = free_port();
     let yaml = timeout_filter_yaml(proxy_port, backend_port, 5000);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "fast backend within timeout should return 200");
     assert_eq!(body, "fast", "response body should pass through");
 }
@@ -120,10 +120,10 @@ fn repeated_requests_to_dead_backend_all_return_502() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, dead_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     for i in 0..5 {
-        let (status, _) = http_get(&addr, "/", None);
+        let (status, _) = http_get(proxy.addr(), "/", None);
         assert_eq!(
             status, 502,
             "request {i} to dead backend should consistently return 502"
@@ -164,12 +164,12 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/dead/path", None);
+    let (status, _) = http_get(proxy.addr(), "/dead/path", None);
     assert_eq!(status, 502, "request to dead cluster should return 502");
 
-    let (status, body) = http_get(&addr, "/ok", None);
+    let (status, body) = http_get(proxy.addr(), "/ok", None);
     assert_eq!(
         status, 200,
         "request to live cluster should succeed after dead cluster failure"
@@ -205,10 +205,13 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let start = Instant::now();
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let elapsed = start.elapsed();
     let status = parse_status(&raw);
 
@@ -228,9 +231,9 @@ fn client_disconnect_during_slow_response_does_not_crash_proxy() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, slow_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let mut stream = TcpStream::connect(&addr).expect("TCP connect");
+    let mut stream = TcpStream::connect(proxy.addr()).expect("TCP connect");
     stream.set_read_timeout(Some(Duration::from_millis(200))).ok();
     let request = "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
     stream.write_all(request.as_bytes()).expect("write request");
@@ -242,9 +245,9 @@ fn client_disconnect_during_slow_response_does_not_crash_proxy() {
     let proxy_port2 = free_port();
     let yaml2 = simple_proxy_yaml(proxy_port2, live_port);
     let config2 = Config::from_yaml(&yaml2).unwrap();
-    let addr2 = start_proxy(&config2);
+    let proxy2 = start_proxy(&config2);
 
-    let (status, body) = http_get(&addr2, "/", None);
+    let (status, body) = http_get(proxy2.addr(), "/", None);
     assert_eq!(status, 200, "proxy should remain functional after client disconnect");
     assert_eq!(body, "still-alive", "proxy should serve new requests normally");
 }

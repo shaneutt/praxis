@@ -16,10 +16,10 @@ fn untrusted_client_cannot_spoof_xff() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &[]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-For: 10.0.0.99\r\n\
@@ -46,10 +46,10 @@ fn untrusted_cannot_spoof_x_forwarded_proto() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &[]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-Proto: https\r\n\
@@ -72,10 +72,10 @@ fn untrusted_cannot_spoof_x_forwarded_host() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &[]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: real-host.com\r\n\
          X-Forwarded-Host: evil-host.com\r\n\
@@ -98,10 +98,10 @@ fn xff_chain_injection_prevented() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &[]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-For: 10.0.0.1, 192.168.1.1\r\n\
@@ -128,10 +128,10 @@ fn trusted_proxy_preserves_chain() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &["127.0.0.0/8"]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-For: 203.0.113.50\r\n\
@@ -161,10 +161,10 @@ fn trusted_proxy_with_long_xff_chain() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &["127.0.0.0/8"]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-For: 203.0.113.1, 10.1.1.1, 10.2.2.2\r\n\
@@ -186,10 +186,10 @@ fn multiple_xff_headers_from_untrusted_overwritten() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &[]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-For: 10.0.0.1\r\n\
@@ -211,10 +211,10 @@ fn multiple_xfp_headers_from_untrusted_overwritten() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &[]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-Proto: https\r\n\
@@ -237,10 +237,10 @@ fn multiple_xfh_headers_from_untrusted_overwritten() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &[]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: real-host.com\r\n\
          X-Forwarded-Host: evil1.com\r\n\
@@ -263,10 +263,10 @@ fn empty_xff_from_untrusted_replaced() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &[]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-For: \r\n\
@@ -288,10 +288,10 @@ fn ipv6_xff_from_untrusted_overwritten() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &[]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-For: ::1\r\n\
@@ -311,10 +311,10 @@ fn ipv6_loopback_in_xff_chain_from_trusted_proxy_preserved() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &["127.0.0.0/8"]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-For: ::1\r\n\
@@ -344,10 +344,10 @@ fn ipv6_full_address_in_xff_from_trusted_proxy_preserved() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &["127.0.0.0/8"]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-For: 2001:db8::1\r\n\
@@ -373,10 +373,10 @@ fn mixed_ipv4_and_ipv6_in_xff_from_trusted_proxy_preserved() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &["127.0.0.0/8"]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-For: 192.168.1.1, 2001:db8::1\r\n\
@@ -406,10 +406,10 @@ fn trusted_proxy_proto_reflects_actual_scheme() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &["127.0.0.0/8"]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-Proto: https\r\n\
@@ -431,10 +431,10 @@ fn trusted_proxy_host_reflects_actual_host_header() {
     let proxy_port = free_port();
     let yaml = fwd_yaml(proxy_port, backend_port, &["127.0.0.0/8"]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: proxy-host.com\r\n\
          X-Forwarded-Host: original-host.com\r\n\

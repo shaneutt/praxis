@@ -11,7 +11,8 @@ use praxis_filter::{
     BodyAccess, BodyMode, FilterAction, FilterError, FilterFactory, FilterRegistry, HttpFilter, HttpFilterContext,
 };
 use praxis_test_utils::{
-    BackendGuard, free_port, http_post, http_send, parse_status, start_backend_with_shutdown, start_proxy_with_registry,
+    BackendGuard, ProxyGuard, free_port, http_post, http_send, parse_status, start_backend_with_shutdown,
+    start_proxy_with_registry,
 };
 
 // -----------------------------------------------------------------------------
@@ -20,41 +21,41 @@ use praxis_test_utils::{
 
 #[test]
 fn stream_buffer_within_limit_succeeds() {
-    let (_guard, addr) = setup(256);
+    let (_guard, proxy) = setup(256);
     let body = "a".repeat(100);
-    let (status, _) = http_post(&addr, "/", &body);
+    let (status, _) = http_post(proxy.addr(), "/", &body);
     assert_eq!(status, 200, "body within limit should be accepted");
 }
 
 #[test]
 fn stream_buffer_at_exact_limit_succeeds() {
-    let (_guard, addr) = setup(64);
+    let (_guard, proxy) = setup(64);
     let body = "b".repeat(64);
-    let (status, _) = http_post(&addr, "/", &body);
+    let (status, _) = http_post(proxy.addr(), "/", &body);
     assert_eq!(status, 200, "body at exact limit should be accepted");
 }
 
 #[test]
 fn stream_buffer_exceeding_limit_returns_413() {
-    let (_guard, addr) = setup(64);
+    let (_guard, proxy) = setup(64);
     let body = "c".repeat(128);
-    let (status, _) = http_post(&addr, "/", &body);
+    let (status, _) = http_post(proxy.addr(), "/", &body);
     assert_eq!(status, 413, "body exceeding limit should be rejected with 413");
 }
 
 #[test]
 fn stream_buffer_one_byte_over_returns_413() {
-    let (_guard, addr) = setup(64);
+    let (_guard, proxy) = setup(64);
     let body = "d".repeat(65);
-    let (status, _) = http_post(&addr, "/", &body);
+    let (status, _) = http_post(proxy.addr(), "/", &body);
     assert_eq!(status, 413, "body one byte over limit should be rejected with 413");
 }
 
 #[test]
 fn stream_buffer_empty_body_succeeds() {
-    let (_guard, addr) = setup(64);
+    let (_guard, proxy) = setup(64);
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Content-Length: 0\r\n\
@@ -115,8 +116,8 @@ impl HttpFilter for TinyStreamBufferFilter {
     }
 }
 
-/// Start a proxy with a tiny stream buffer filter and return the guard and address.
-fn setup(max_bytes: usize) -> (BackendGuard, String) {
+/// Start a proxy with a tiny stream buffer filter and return the guard and proxy.
+fn setup(max_bytes: usize) -> (BackendGuard, ProxyGuard) {
     let backend_port_guard = start_backend_with_shutdown("ok");
     let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
@@ -150,6 +151,6 @@ filter_chains:
             FilterFactory::Http(Arc::new(TinyStreamBufferFilter::from_config)),
         )
         .expect("duplicate filter name");
-    let addr = start_proxy_with_registry(&config, &registry);
-    (backend_port_guard, addr)
+    let proxy = start_proxy_with_registry(&config, &registry);
+    (backend_port_guard, proxy)
 }

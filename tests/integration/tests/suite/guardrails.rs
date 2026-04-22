@@ -19,10 +19,10 @@ fn header_contains_blocks_matching_request() {
     let proxy_port = free_port();
     let yaml = guardrails_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\nHost: localhost\r\nUser-Agent: bad-bot/1.0\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(parse_status(&raw), 401, "bad-bot User-Agent should be blocked");
@@ -40,9 +40,9 @@ fn clean_request_passes_through() {
     let proxy_port = free_port();
     let yaml = guardrails_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "clean request should pass through");
     assert_eq!(body, "ok", "clean request should return backend response");
 }
@@ -54,11 +54,11 @@ fn body_contains_blocks_matching_content() {
     let proxy_port = free_port();
     let yaml = guardrails_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let payload = "SELECT 1; DROP TABLE users;";
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &format!(
             "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
             payload.len()
@@ -74,11 +74,11 @@ fn body_without_match_passes_through() {
     let proxy_port = free_port();
     let yaml = guardrails_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let payload = "SELECT 1 FROM users";
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &format!(
             "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
             payload.len()
@@ -94,10 +94,10 @@ fn header_pattern_blocks_regex_match() {
     let proxy_port = free_port();
     let yaml = header_pattern_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\nHost: localhost\r\nX-Script: <script>alert(1)</script>\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(parse_status(&raw), 401, "script tag pattern should be blocked");
@@ -137,11 +137,11 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let payload = "this body contains evil content but header-only rules won't catch it";
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &format!(
             "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
             payload.len()
@@ -157,10 +157,10 @@ fn multiple_rules_any_match_rejects() {
     let proxy_port = free_port();
     let yaml = guardrails_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\nHost: localhost\r\nX-Evil: evilmonkey-value\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(
@@ -177,9 +177,9 @@ fn negated_header_rejects_missing_header() {
     let proxy_port = free_port();
     let yaml = negate_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 401,
         "missing X-Authorized header should be rejected by negated rule"
@@ -193,10 +193,10 @@ fn negated_header_rejects_non_matching_value() {
     let proxy_port = free_port();
     let yaml = negate_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\nHost: localhost\r\nX-Authorized: stranger\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(
@@ -213,10 +213,10 @@ fn negated_header_allows_matching_value() {
     let proxy_port = free_port();
     let yaml = negate_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\nHost: localhost\r\nX-Authorized: trusted-client\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(
@@ -238,11 +238,11 @@ fn negated_body_rejects_non_matching_content() {
     let proxy_port = free_port();
     let yaml = negate_body_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let payload = "not json at all";
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &format!(
             "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
             payload.len()
@@ -262,11 +262,11 @@ fn negated_body_allows_matching_content() {
     let proxy_port = free_port();
     let yaml = negate_body_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let payload = r#"{"key":"value"}"#;
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &format!(
             "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
             payload.len()
@@ -286,11 +286,11 @@ fn mixed_positive_and_negated_rules() {
     let proxy_port = free_port();
     let yaml = mixed_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let payload = r#"{"query":"SELECT 1"}"#;
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &format!(
             "POST / HTTP/1.1\r\nHost: localhost\r\nX-Authorized: trusted-app\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
             payload.len()
@@ -303,7 +303,7 @@ fn mixed_positive_and_negated_rules() {
     );
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &format!(
             "POST / HTTP/1.1\r\nHost: localhost\r\nX-Authorized: trusted-app\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
             "evilmonkey payload".len(),
@@ -318,7 +318,7 @@ fn mixed_positive_and_negated_rules() {
 
     let payload = r#"{"safe":"data"}"#;
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &format!(
             "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
             payload.len()

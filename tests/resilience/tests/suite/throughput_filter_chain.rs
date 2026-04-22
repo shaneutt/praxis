@@ -18,9 +18,9 @@ fn bench_pipeline_4_filters() {
     let proxy_port = free_port();
     let yaml = multi_filter_yaml(proxy_port, backend_port, 1);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let cfg = BenchConfig::new("pipeline_4_filters (rid + 1h + router + lb)");
-    let result = run_get_benchmark(&cfg, &addr, "/");
+    let result = run_get_benchmark(&cfg, proxy.addr(), "/");
     assert_eq!(result.errors, 0, "all requests should succeed");
     report_results(&result);
     assert_performance(&result, 500.0, 500.0);
@@ -32,9 +32,9 @@ fn bench_pipeline_8_filters() {
     let proxy_port = free_port();
     let yaml = multi_filter_yaml(proxy_port, backend_port, 5);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let cfg = BenchConfig::new("pipeline_8_filters (rid + 5h + router + lb)");
-    let result = run_get_benchmark(&cfg, &addr, "/");
+    let result = run_get_benchmark(&cfg, proxy.addr(), "/");
     assert_eq!(result.errors, 0, "all requests should succeed");
     report_results(&result);
     assert_performance(&result, 300.0, 500.0);
@@ -46,9 +46,9 @@ fn bench_pipeline_15_filters() {
     let proxy_port = free_port();
     let yaml = multi_filter_yaml(proxy_port, backend_port, 12);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let cfg = BenchConfig::new("pipeline_15_filters (rid + 12h + router + lb)");
-    let result = run_get_benchmark(&cfg, &addr, "/");
+    let result = run_get_benchmark(&cfg, proxy.addr(), "/");
     assert_eq!(result.errors, 0, "all requests should succeed");
     report_results(&result);
     assert_performance(&result, 200.0, 500.0);

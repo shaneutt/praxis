@@ -21,9 +21,9 @@ fn path_rewriting_strip_prefix() {
         proxy_port,
         HashMap::from([("127.0.0.1:3000", backend_port)]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/api/v1/users", None);
+    let (status, body) = http_get(proxy.addr(), "/api/v1/users", None);
     assert_eq!(status, 200, "request should succeed");
     assert_eq!(body, "/users", "upstream should see path with prefix stripped");
 }
@@ -38,9 +38,9 @@ fn path_rewriting_regex_replace() {
         proxy_port,
         HashMap::from([("127.0.0.1:3000", backend_port)]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/old/resource", None);
+    let (status, body) = http_get(proxy.addr(), "/old/resource", None);
     assert_eq!(status, 200, "request should succeed");
     assert_eq!(body, "/new/resource", "upstream should see regex-rewritten path");
 }
@@ -55,9 +55,9 @@ fn path_rewriting_no_match_passes_through() {
         proxy_port,
         HashMap::from([("127.0.0.1:3000", backend_port)]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/other", None);
+    let (status, body) = http_get(proxy.addr(), "/other", None);
     assert_eq!(status, 200, "request should succeed");
     assert_eq!(
         body, "/other",

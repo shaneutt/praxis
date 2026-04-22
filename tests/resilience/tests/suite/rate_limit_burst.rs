@@ -18,17 +18,20 @@ fn burst_exhaustion_then_rejection() {
     let burst = usable + 2;
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 0.1, burst);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     for i in 0..usable {
-        let (status, body) = http_get(&addr, "/", None);
+        let (status, body) = http_get(proxy.addr(), "/", None);
         assert_eq!(status, 200, "request {i} within burst should return 200");
         assert_eq!(body, "ok", "request {i} should get backend response");
     }
 
     let mut first_429_at = None;
     for i in 0..4u32 {
-        let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+        let raw = http_send(
+            proxy.addr(),
+            "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+        );
         if parse_status(&raw) == 429 {
             first_429_at = Some(usable + i);
             break;
@@ -47,11 +50,14 @@ fn rejection_includes_retry_after_header() {
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 1.0, 2);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    http_get(&addr, "/", None);
+    http_get(proxy.addr(), "/", None);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     assert_eq!(parse_status(&raw), 429, "second request should be rate limited");
 
     let retry_after = parse_header(&raw, "retry-after");
@@ -71,9 +77,12 @@ fn rate_limit_headers_present_on_success() {
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 100.0, 200);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     assert_eq!(parse_status(&raw), 200, "request should succeed");
 
     assert!(
@@ -96,15 +105,21 @@ fn rate_limit_remaining_decreases() {
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 0.1, 10);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw1 = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw1 = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let remaining1: u32 = parse_header(&raw1, "x-ratelimit-remaining")
         .expect("first response should have X-RateLimit-Remaining")
         .parse()
         .expect("remaining should be a number");
 
-    let raw2 = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw2 = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let remaining2: u32 = parse_header(&raw2, "x-ratelimit-remaining")
         .expect("second response should have X-RateLimit-Remaining")
         .parse()
@@ -122,11 +137,14 @@ fn rate_limit_headers_present_on_rejection() {
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 0.1, 2);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    http_get(&addr, "/", None);
+    http_get(proxy.addr(), "/", None);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     assert_eq!(parse_status(&raw), 429, "should be rate limited");
 
     assert!(
@@ -151,16 +169,16 @@ fn per_ip_burst_exhaustion() {
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "per_ip", 0.1, 5);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     for i in 0..3 {
-        let (status, _) = http_get(&addr, "/", None);
+        let (status, _) = http_get(proxy.addr(), "/", None);
         assert_eq!(status, 200, "per-IP request {i} within burst should succeed");
     }
 
     let mut saw_429 = false;
     for _ in 0..4 {
-        let (status, _) = http_get(&addr, "/", None);
+        let (status, _) = http_get(proxy.addr(), "/", None);
         if status == 429 {
             saw_429 = true;
             break;
@@ -176,12 +194,12 @@ fn rapid_burst_uses_all_tokens() {
     let burst: u32 = 8;
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 0.1, burst);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let mut successes = 0u32;
     let total = burst + 5;
     for _ in 0..total {
-        let (status, _) = http_get(&addr, "/", None);
+        let (status, _) = http_get(proxy.addr(), "/", None);
         if status == 200 {
             successes += 1;
         }

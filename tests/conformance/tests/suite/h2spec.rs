@@ -23,8 +23,8 @@ fn h2spec_strict_conformance() {
     let h2spec = find_h2spec();
     let proxy_port = free_port();
     let config = Config::from_yaml(&static_response_yaml(proxy_port)).unwrap();
-    let addr = start_proxy(&config);
-    wait_for_http2(&addr);
+    let proxy = start_proxy(&config);
+    wait_for_http2(proxy.addr());
 
     let dir = report_dir();
     fs::create_dir_all(&dir).unwrap();

@@ -19,9 +19,9 @@ fn deny_all_blocks_loopback() {
     let proxy_port = free_port();
     let yaml = acl_yaml(proxy_port, backend_port, &[], &["0.0.0.0/0"]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 403, "deny 0.0.0.0/0 must block loopback");
 }
 
@@ -31,9 +31,9 @@ fn allow_loopback_with_deny_all() {
     let proxy_port = free_port();
     let yaml = acl_yaml(proxy_port, backend_port, &["127.0.0.0/8"], &["0.0.0.0/0"]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "allow 127.0.0.0/8 must override deny-all");
 }
 
@@ -43,9 +43,9 @@ fn deny_loopback_blocks_request() {
     let proxy_port = free_port();
     let yaml = acl_yaml(proxy_port, backend_port, &[], &["127.0.0.0/8"]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 403, "deny 127.0.0.0/8 must block loopback client");
 }
 
@@ -55,9 +55,9 @@ fn empty_acl_allows_all() {
     let proxy_port = free_port();
     let yaml = acl_yaml(proxy_port, backend_port, &[], &[]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "empty ACL must allow all traffic");
 }
 
@@ -67,9 +67,9 @@ fn allow_list_only_rejects_non_matching() {
     let proxy_port = free_port();
     let yaml = acl_yaml(proxy_port, backend_port, &["10.0.0.0/8"], &[]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/", None);
+    let (status, _) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 403, "allow-only for 10.0.0.0/8 must reject 127.0.0.1");
 }
 
@@ -79,9 +79,12 @@ fn acl_rejection_has_no_body_leakage() {
     let proxy_port = free_port();
     let yaml = acl_yaml(proxy_port, backend_port, &[], &["0.0.0.0/0"]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let body = parse_body(&raw);
     let body_lower = body.to_lowercase();
 
@@ -101,12 +104,12 @@ fn acl_applies_to_all_methods() {
     let proxy_port = free_port();
     let yaml = acl_yaml(proxy_port, backend_port, &[], &["0.0.0.0/0"]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"];
     for method in methods {
         let raw = http_send(
-            &addr,
+            proxy.addr(),
             &format!("{method} / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"),
         );
         let status = parse_status(&raw);
@@ -120,9 +123,12 @@ fn acl_before_router_means_no_routing_on_denied() {
     let proxy_port = free_port();
     let yaml = acl_yaml(proxy_port, backend_port, &[], &["0.0.0.0/0"]);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let status = parse_status(&raw);
     assert_eq!(status, 403, "deny-all ACL must return 403");
 

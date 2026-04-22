@@ -31,14 +31,14 @@ fn path_based_routing() {
             ("127.0.0.1:5000", default_port),
         ]),
     );
-    let addr = start_proxy(&config);
-    let (status, body) = http_get(&addr, "/api/users", None);
+    let proxy = start_proxy(&config);
+    let (status, body) = http_get(proxy.addr(), "/api/users", None);
     assert_eq!(status, 200, "/api/ path should return 200");
     assert_eq!(body, "api", "/api/ should route to api backend");
-    let (status, body) = http_get(&addr, "/static/index.html", None);
+    let (status, body) = http_get(proxy.addr(), "/static/index.html", None);
     assert_eq!(status, 200, "/static/ path should return 200");
     assert_eq!(body, "static", "/static/ should route to static backend");
-    let (status, body) = http_get(&addr, "/other", None);
+    let (status, body) = http_get(proxy.addr(), "/other", None);
     assert_eq!(status, 200, "default path should return 200");
     assert_eq!(body, "default", "unmatched path should route to default backend");
 }

@@ -53,13 +53,13 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/api/users", None);
+    let (status, body) = http_get(proxy.addr(), "/api/users", None);
     assert_eq!(status, 200, "loopback should be allowed by ACL");
     assert_eq!(body, "backend-a", "/api/ should route to api backend");
 
-    let (status, body) = http_get(&addr, "/index.html", None);
+    let (status, body) = http_get(proxy.addr(), "/index.html", None);
     assert_eq!(status, 200, "loopback should be allowed for web path");
     assert_eq!(body, "backend-b", "default path should route to web backend");
 }
@@ -99,12 +99,12 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _) = http_get(&addr, "/admin/settings", None);
+    let (status, _) = http_get(proxy.addr(), "/admin/settings", None);
     assert_eq!(status, 403, "/admin/ path should be blocked by ACL");
 
-    let (status, body) = http_get(&addr, "/public/page", None);
+    let (status, body) = http_get(proxy.addr(), "/public/page", None);
     assert_eq!(status, 200, "non-admin path should bypass ACL");
     assert_eq!(body, "ok", "non-admin path should return backend response");
 }
@@ -147,9 +147,12 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     assert_eq!(parse_status(&raw), 200, "allowed request should return 200");
     assert_eq!(
         parse_header(&raw, "x-acl-status"),
@@ -202,7 +205,7 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    start_proxy(&config);
+    let _proxy = start_proxy(&config);
     wait_for_http(&format!("127.0.0.1:{port_locked}"));
 
     let (status, body) = http_get(&format!("127.0.0.1:{port_open}"), "/", None);
@@ -247,9 +250,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "/32 CIDR should match 127.0.0.1 exactly");
     assert_eq!(body, "precise", "/32 CIDR should forward backend response");
 }
@@ -290,9 +293,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/test", None);
+    let (status, body) = http_get(proxy.addr(), "/test", None);
     assert_eq!(
         status, 200,
         "allowed request with observability filters should return 200"
@@ -338,12 +341,12 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/healthz", None);
+    let (status, body) = http_get(proxy.addr(), "/healthz", None);
     assert_eq!(status, 200, "/healthz should bypass ACL via unless condition");
     assert_eq!(body, "healthy", "/healthz should return backend response");
 
-    let (status, _) = http_get(&addr, "/api/data", None);
+    let (status, _) = http_get(proxy.addr(), "/api/data", None);
     assert_eq!(status, 403, "non-exempt path should be denied by ACL");
 }

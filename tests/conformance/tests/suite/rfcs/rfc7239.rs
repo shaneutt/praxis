@@ -25,10 +25,10 @@ fn rfc7239_standard_forwarded_header_injected() {
     let proxy_port = free_port();
     let yaml = forwarded_standard_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close\r\n\r\n",
@@ -62,10 +62,10 @@ fn rfc7239_forwarded_header_format() {
     let proxy_port = free_port();
     let yaml = forwarded_standard_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: example.com\r\n\
          Connection: close\r\n\r\n",
@@ -112,10 +112,10 @@ fn rfc7239_forwarded_header_appended_when_trusted() {
     let proxy_port = free_port();
     let yaml = forwarded_standard_trusted_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Forwarded: for=203.0.113.50;proto=https\r\n\
@@ -147,10 +147,10 @@ fn rfc7239_forwarded_header_includes_for_proto_host() {
     let proxy_port = free_port();
     let yaml = forwarded_standard_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: test.example.com\r\n\
          Connection: close\r\n\r\n",
@@ -180,6 +180,6 @@ fn rfc7239_forwarded_header_includes_for_proto_host() {
 
 /// Wrapper for [`praxis_test_utils::start_proxy`] used across
 /// RFC 7239 tests.
-fn start_proxy(config: &Config) -> String {
+fn start_proxy(config: &Config) -> praxis_test_utils::ProxyGuard {
     praxis_test_utils::start_proxy(config)
 }

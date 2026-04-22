@@ -21,13 +21,16 @@ fn logging() {
         proxy_port,
         HashMap::from([("127.0.0.1:3000", backend_port)]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     assert_eq!(parse_status(&raw), 200, "request without X-Trace-Id should succeed");
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Trace-Id: my-trace-42\r\n\
@@ -41,7 +44,7 @@ fn logging() {
     );
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Trace-Id: other-99\r\n\

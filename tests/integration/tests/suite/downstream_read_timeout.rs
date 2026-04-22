@@ -43,8 +43,8 @@ filter_chains:
 "#
     );
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
-    let (status, body) = http_get(&addr, "/", None);
+    let proxy = start_proxy(&config);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 200,
         "normal request should succeed with read timeout configured"
@@ -79,9 +79,9 @@ filter_chains:
 "#
     );
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let mut stream = TcpStream::connect(&addr).expect("TCP connect");
+    let mut stream = TcpStream::connect(proxy.addr()).expect("TCP connect");
     stream
         .set_read_timeout(Some(Duration::from_secs(5)))
         .expect("set read timeout");

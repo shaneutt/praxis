@@ -18,9 +18,9 @@ fn nonsense_method_does_not_crash() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "XYZZY / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let raw = http_send(proxy.addr(), "XYZZY / HTTP/1.1\r\nHost: localhost\r\n\r\n");
     let status = parse_status(&raw);
 
     assert!(
@@ -35,9 +35,9 @@ fn missing_host_header_does_not_crash() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nConnection: close\r\n\r\n");
+    let raw = http_send(proxy.addr(), "GET / HTTP/1.1\r\nConnection: close\r\n\r\n");
     let status = parse_status(&raw);
 
     assert!(
@@ -52,9 +52,9 @@ fn empty_request_line_no_crash() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "\r\n\r\n");
+    let raw = http_send(proxy.addr(), "\r\n\r\n");
     let status = parse_status(&raw);
     assert!(
         status == 400 || status == 0,
@@ -68,19 +68,19 @@ fn garbage_bytes_no_crash() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let garbage = b"\x00\x01\x02\x7f\x03\r\n";
     {
         use std::io::{Read, Write};
-        let mut stream = std::net::TcpStream::connect(&addr).unwrap();
+        let mut stream = std::net::TcpStream::connect(proxy.addr()).unwrap();
         stream.set_read_timeout(Some(std::time::Duration::from_secs(2))).ok();
         let _sent = stream.write_all(garbage);
         let mut buf = [0u8; 1024];
         let _bytes = stream.read(&mut buf);
     }
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "proxy should still serve requests after garbage bytes");
     assert_eq!(body, "ok", "response body should be intact after garbage bytes");
 }
@@ -91,11 +91,11 @@ fn very_long_uri_handled() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let long_path = "/".to_owned() + &"a".repeat(8000);
     let request = format!("GET {long_path} HTTP/1.1\r\nHost: localhost\r\n\r\n");
-    let raw = http_send(&addr, &request);
+    let raw = http_send(proxy.addr(), &request);
     let status = parse_status(&raw);
 
     assert!(
@@ -110,7 +110,7 @@ fn very_long_header_value_handled() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let long_value = "x".repeat(16_000);
     let request = format!(
@@ -119,7 +119,7 @@ fn very_long_header_value_handled() {
          X-Big: {long_value}\r\n\
          \r\n"
     );
-    let raw = http_send(&addr, &request);
+    let raw = http_send(proxy.addr(), &request);
     let status = parse_status(&raw);
 
     assert!(
@@ -134,7 +134,7 @@ fn many_headers_handled() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let mut request = "GET / HTTP/1.1\r\nHost: localhost\r\n".to_owned();
     for i in 0..200 {
@@ -142,7 +142,7 @@ fn many_headers_handled() {
     }
     request.push_str("\r\n");
 
-    let raw = http_send(&addr, &request);
+    let raw = http_send(proxy.addr(), &request);
     let status = parse_status(&raw);
 
     assert!(
@@ -157,9 +157,12 @@ fn content_length_zero_with_no_body() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n",
+    );
     let status = parse_status(&raw);
     assert_eq!(status, 200, "Content-Length: 0 with no body should succeed");
 }
@@ -170,9 +173,12 @@ fn negative_content_length_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nContent-Length: -1\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nContent-Length: -1\r\n\r\n",
+    );
     let status = parse_status(&raw);
 
     assert!(
@@ -187,10 +193,10 @@ fn duplicate_content_length_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Content-Length: 5\r\n\
@@ -213,11 +219,11 @@ fn proxy_recovers_after_malformed_request() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let _raw = http_send(&addr, "NOT HTTP\r\n\r\n");
+    let _raw = http_send(proxy.addr(), "NOT HTTP\r\n\r\n");
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "proxy should recover after malformed request");
     assert_eq!(body, "recovered", "response body should be correct after recovery");
 }
@@ -228,14 +234,14 @@ fn proxy_recovers_after_connection_reset() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     {
-        let stream = std::net::TcpStream::connect(&addr).unwrap();
+        let stream = std::net::TcpStream::connect(proxy.addr()).unwrap();
         drop(stream);
     }
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "proxy should recover after connection reset");
     assert_eq!(body, "alive", "response body should be correct after reset recovery");
 }
@@ -246,9 +252,9 @@ fn head_request_returns_no_body() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "HEAD / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let raw = http_send(proxy.addr(), "HEAD / HTTP/1.1\r\nHost: localhost\r\n\r\n");
     let status = parse_status(&raw);
 
     assert_eq!(status, 200, "HEAD request should return 200");
@@ -262,8 +268,8 @@ fn options_request_handled() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
-    let raw = http_send(&addr, "OPTIONS / HTTP/1.1\r\nHost: localhost\r\n\r\n");
+    let proxy = start_proxy(&config);
+    let raw = http_send(proxy.addr(), "OPTIONS / HTTP/1.1\r\nHost: localhost\r\n\r\n");
     let status = parse_status(&raw);
     assert!(
         status == 200 || status == 405,
@@ -277,7 +283,8 @@ fn handles_concurrent_requests() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
+    let addr = proxy.addr().to_owned();
     let handles: Vec<_> = (0..10)
         .map(|_| {
             let addr = addr.clone();

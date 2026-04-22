@@ -30,14 +30,14 @@ fn virtual_hosts() {
             ("127.0.0.1:5000", default_port),
         ]),
     );
-    let addr = start_proxy(&config);
-    let (status, body) = http_get(&addr, "/", Some("api.example.com"));
+    let proxy = start_proxy(&config);
+    let (status, body) = http_get(proxy.addr(), "/", Some("api.example.com"));
     assert_eq!(status, 200, "api.example.com should return 200");
     assert_eq!(body, "api-host", "api.example.com should route to api backend");
-    let (status, body) = http_get(&addr, "/", Some("www.example.com"));
+    let (status, body) = http_get(proxy.addr(), "/", Some("www.example.com"));
     assert_eq!(status, 200, "www.example.com should return 200");
     assert_eq!(body, "web-host", "www.example.com should route to web backend");
-    let (status, body) = http_get(&addr, "/", Some("unknown.example.com"));
+    let (status, body) = http_get(proxy.addr(), "/", Some("unknown.example.com"));
     assert_eq!(status, 200, "unknown host should return 200");
     assert_eq!(body, "default-host", "unknown host should route to default backend");
 }

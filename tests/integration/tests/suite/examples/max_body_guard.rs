@@ -53,10 +53,10 @@ filter_chains:
             FilterFactory::Http(Arc::new(MaxBodyGuard::from_config)),
         )
         .expect("duplicate filter name");
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Content-Length: 5\r\n\
@@ -66,7 +66,7 @@ filter_chains:
     assert_eq!(parse_body(&raw), "accepted", "small body response should match backend");
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Content-Length: 2048\r\n\
@@ -74,7 +74,7 @@ filter_chains:
     );
     assert_eq!(parse_status(&raw), 413, "large body should be rejected with 413");
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "GET without content-length should be accepted");
     assert_eq!(body, "accepted", "GET response should match backend");
 }

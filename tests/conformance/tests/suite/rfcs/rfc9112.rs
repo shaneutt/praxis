@@ -35,9 +35,9 @@ fn rfc9112_te_and_cl_conflict() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Transfer-Encoding: chunked\r\n\
@@ -70,10 +70,10 @@ fn rfc9112_bare_cr_in_header_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let request = b"GET / HTTP/1.1\r\nHost: localhost\r\nX-Bad: foo\rbar\r\nConnection: close\r\n\r\n";
     let raw = {
-        let mut stream = TcpStream::connect(&addr).unwrap();
+        let mut stream = TcpStream::connect(proxy.addr()).unwrap();
         stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
         stream.write_all(request).unwrap();
         let mut buf = String::new();
@@ -105,9 +105,9 @@ fn rfc9112_absolute_form_request_uri() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &format!(
             "GET http://localhost:{proxy_port}/ HTTP/1.1\r\n\
              Host: localhost\r\n\
@@ -137,9 +137,9 @@ fn rfc9112_connection_close_respected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close\r\n\r\n",
@@ -175,10 +175,10 @@ fn rfc9112_te_overrides_cl_chunked_body() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Transfer-Encoding: chunked\r\n\
@@ -208,10 +208,10 @@ fn rfc9112_cl_removed_when_te_present() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Transfer-Encoding: chunked\r\n\
@@ -252,9 +252,12 @@ fn rfc9112_double_crlf_response_splitting_prevented() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let status = parse_status(&raw);
     assert!(
         status == 502 || status == 200,
@@ -276,9 +279,9 @@ fn rfc9112_bare_cr_in_response_header_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _body) = http_get(&addr, "/", None);
+    let (status, _body) = http_get(proxy.addr(), "/", None);
     assert!(
         status == 502 || status == 200,
         "bare CR in upstream response header must be rejected (502) or sanitized (200), got {status}"
@@ -295,9 +298,9 @@ fn rfc9112_bare_lf_in_response_header_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _body) = http_get(&addr, "/", None);
+    let (status, _body) = http_get(proxy.addr(), "/", None);
     assert!(
         status == 502 || status == 200,
         "bare LF in upstream response header must be rejected (502) or sanitized (200), got {status}"
@@ -314,9 +317,9 @@ fn rfc9112_null_byte_in_response_header_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _body) = http_get(&addr, "/", None);
+    let (status, _body) = http_get(proxy.addr(), "/", None);
     assert!(
         status == 502 || status == 200,
         "null byte in upstream response header must be rejected (502) or sanitized (200), got {status}"
@@ -338,10 +341,10 @@ fn rfc9112_proxy_sends_http11_to_upstream() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close\r\n\r\n",
@@ -371,11 +374,11 @@ fn rfc9112_expect_100_continue_post_succeeds() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let body_data = "hello world";
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &format!(
             "POST / HTTP/1.1\r\n\
              Host: localhost\r\n\
@@ -408,11 +411,11 @@ fn rfc9112_expect_100_continue_417_forwarded() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let body_data = "test";
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &format!(
             "POST / HTTP/1.1\r\n\
              Host: localhost\r\n\
@@ -448,10 +451,10 @@ fn rfc9112_obs_fold_sp_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Folded: first\r\n \
@@ -476,10 +479,10 @@ fn rfc9112_obs_fold_htab_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Folded: first\r\n\t\
@@ -508,10 +511,10 @@ fn rfc9112_http10_without_host_accepted() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.0\r\n\
          Connection: close\r\n\r\n",
     );
@@ -541,10 +544,10 @@ fn rfc9112_options_asterisk_form_handled() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "OPTIONS * HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close\r\n\r\n",

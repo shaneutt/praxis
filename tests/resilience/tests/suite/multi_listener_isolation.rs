@@ -55,7 +55,7 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    start_proxy(&config);
+    let _proxy = start_proxy(&config);
     wait_for_http(&format!("127.0.0.1:{port_b}"));
 
     let (status_a, _) = http_get(&format!("127.0.0.1:{port_a}"), "/", None);
@@ -112,7 +112,7 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    start_proxy(&config);
+    let _proxy = start_proxy(&config);
     wait_for_http(&format!("127.0.0.1:{port_b}"));
 
     let raw_a = praxis_test_utils::http_send(
@@ -201,7 +201,7 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    start_proxy(&config);
+    let _proxy = start_proxy(&config);
     wait_for_http(&format!("127.0.0.1:{listen_b}"));
     wait_for_http(&format!("127.0.0.1:{listen_c}"));
 
@@ -264,7 +264,7 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    start_proxy(&config);
+    let _proxy = start_proxy(&config);
     wait_for_tcp(&format!("127.0.0.1:{port_dead}"));
 
     let (status_dead, _) = http_get(&format!("127.0.0.1:{port_dead}"), "/", None);

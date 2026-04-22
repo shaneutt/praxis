@@ -46,16 +46,16 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", Some("api.example.com"));
+    let (status, body) = http_get(proxy.addr(), "/", Some("api.example.com"));
     assert_eq!(status, 200, "api.example.com should match wildcard route");
     assert_eq!(
         body, "wildcard-backend",
         "api.example.com should route to wildcard cluster"
     );
 
-    let (status, body) = http_get(&addr, "/", Some("www.example.com"));
+    let (status, body) = http_get(proxy.addr(), "/", Some("www.example.com"));
     assert_eq!(status, 200, "www.example.com should match wildcard route");
     assert_eq!(
         body, "wildcard-backend",
@@ -99,9 +99,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", Some("example.com"));
+    let (status, body) = http_get(proxy.addr(), "/", Some("example.com"));
     assert_eq!(status, 200, "example.com should fall back to default route");
     assert_eq!(
         body, "default-backend",
@@ -145,9 +145,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", Some("a.b.example.com"));
+    let (status, body) = http_get(proxy.addr(), "/", Some("a.b.example.com"));
     assert_eq!(status, 200, "multi-level subdomain should fall back to default route");
     assert_eq!(
         body, "default-backend",
@@ -184,10 +184,10 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\nHost: app.example.com:9090\r\nConnection: close\r\n\r\n",
     );
     let status = parse_status(&raw);
@@ -234,16 +234,16 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", Some("api.example.com"));
+    let (status, body) = http_get(proxy.addr(), "/", Some("api.example.com"));
     assert_eq!(status, 200, "exact host should match");
     assert_eq!(
         body, "exact-backend",
         "exact host should take priority over wildcard (first-match)"
     );
 
-    let (status, body) = http_get(&addr, "/", Some("www.example.com"));
+    let (status, body) = http_get(proxy.addr(), "/", Some("www.example.com"));
     assert_eq!(status, 200, "www.example.com should match wildcard");
     assert_eq!(
         body, "wildcard-backend",
@@ -280,9 +280,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _body) = http_get(&addr, "/", Some("other.dev"));
+    let (status, _body) = http_get(proxy.addr(), "/", Some("other.dev"));
     assert_eq!(status, 404, "non-matching host with no default route should return 404");
 }
 
@@ -323,16 +323,16 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/api/users", Some("app.example.com"));
+    let (status, body) = http_get(proxy.addr(), "/api/users", Some("app.example.com"));
     assert_eq!(status, 200, "/api/ with wildcard host should return 200");
     assert_eq!(
         body, "api-response",
         "wildcard + /api/ prefix should route to api cluster"
     );
 
-    let (status, body) = http_get(&addr, "/index.html", Some("app.example.com"));
+    let (status, body) = http_get(proxy.addr(), "/index.html", Some("app.example.com"));
     assert_eq!(status, 200, "/ with wildcard host should return 200");
     assert_eq!(body, "web-response", "wildcard + / prefix should route to web cluster");
 }
@@ -373,16 +373,16 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", Some("tenant.example.com"));
+    let (status, body) = http_get(proxy.addr(), "/", Some("tenant.example.com"));
     assert_eq!(status, 200, "wildcard in shorthand routes should match");
     assert_eq!(
         body, "wildcard-shorthand",
         "wildcard in shorthand routes should route to wildcard cluster"
     );
 
-    let (status, body) = http_get(&addr, "/", Some("other.dev"));
+    let (status, body) = http_get(proxy.addr(), "/", Some("other.dev"));
     assert_eq!(status, 200, "non-matching host should fall back to default");
     assert_eq!(
         body, "default-shorthand",

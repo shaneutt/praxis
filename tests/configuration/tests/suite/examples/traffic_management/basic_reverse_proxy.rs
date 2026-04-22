@@ -20,8 +20,8 @@ fn basic_reverse_proxy() {
         proxy_port,
         HashMap::from([("127.0.0.1:3000", backend_port)]),
     );
-    let addr = praxis_test_utils::start_proxy(&config);
-    let (status, body) = http_get(&addr, "/", None);
+    let proxy = praxis_test_utils::start_proxy(&config);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "basic reverse proxy should return 200");
     assert_eq!(body, "hello", "proxy should forward backend response");
 }

@@ -25,9 +25,9 @@ fn stream_pipeline_transforms_body_through_three_filters() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&stream_pipeline_yaml(proxy_port, backend_port)).unwrap();
     let registry = stream_registry();
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, body) = http_post(&addr, "/echo", "hello world");
+    let (status, body) = http_post(proxy.addr(), "/echo", "hello world");
 
     assert_eq!(status, 200, "stream pipeline should return 200");
     assert_eq!(
@@ -43,9 +43,9 @@ fn stream_pipeline_rejects_blocked_content() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&stream_pipeline_yaml(proxy_port, backend_port)).unwrap();
     let registry = stream_registry();
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, _) = http_post(&addr, "/echo", "this is BLOCKED content");
+    let (status, _) = http_post(proxy.addr(), "/echo", "this is BLOCKED content");
 
     assert_eq!(status, 403, "stream pipeline should reject BLOCKED content");
 }
@@ -57,9 +57,9 @@ fn stream_pipeline_allows_clean_content() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&stream_pipeline_yaml(proxy_port, backend_port)).unwrap();
     let registry = stream_registry();
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, body) = http_post(&addr, "/echo", "clean content");
+    let (status, body) = http_post(proxy.addr(), "/echo", "clean content");
 
     assert_eq!(status, 200, "clean content should pass stream pipeline");
     assert_eq!(body, "CLEAN CONTENT", "clean body should be uppercased");
@@ -72,9 +72,9 @@ fn buffer_pipeline_transforms_complete_body() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&buffer_pipeline_yaml(proxy_port, backend_port)).unwrap();
     let registry = buffer_registry();
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, body) = http_post(&addr, "/echo", "hello world");
+    let (status, body) = http_post(proxy.addr(), "/echo", "hello world");
 
     assert_eq!(status, 200, "buffer pipeline should return 200");
     assert_eq!(
@@ -90,10 +90,10 @@ fn buffer_pipeline_rejects_oversized_body() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&buffer_pipeline_yaml(proxy_port, backend_port)).unwrap();
     let registry = buffer_registry();
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
     let payload = "x".repeat(200);
-    let (status, _) = http_post(&addr, "/echo", &payload);
+    let (status, _) = http_post(proxy.addr(), "/echo", &payload);
 
     assert_eq!(status, 413, "body exceeding buffer limit should be rejected with 413");
 }
@@ -105,10 +105,10 @@ fn buffer_pipeline_exact_boundary_succeeds() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&buffer_pipeline_yaml(proxy_port, backend_port)).unwrap();
     let registry = buffer_registry();
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
     let payload = "a".repeat(128);
-    let (status, body) = http_post(&addr, "/echo", &payload);
+    let (status, body) = http_post(proxy.addr(), "/echo", &payload);
 
     assert_eq!(status, 200, "body at exact buffer limit should succeed");
     assert_eq!(body, "A".repeat(128), "body at boundary should be fully uppercased");
@@ -121,9 +121,9 @@ fn buffer_pipeline_rejects_forbidden_content() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&buffer_pipeline_yaml(proxy_port, backend_port)).unwrap();
     let registry = buffer_registry();
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, _) = http_post(&addr, "/echo", "BLOCKED payload");
+    let (status, _) = http_post(proxy.addr(), "/echo", "BLOCKED payload");
 
     assert_eq!(status, 403, "buffer pipeline should reject content containing BLOCKED");
 }
@@ -136,10 +136,10 @@ fn stream_buffer_pipeline_extracts_and_routes() {
     let default_port = default_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&stream_buffer_routing_yaml(proxy_port, claude_port, default_port)).unwrap();
-    let addr = praxis_test_utils::start_proxy(&config);
+    let proxy = praxis_test_utils::start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &json_post(
             "/v1/chat",
             r#"{"model":"claude-sonnet-4-5","user_id":"u-1","prompt":"hi"}"#,
@@ -165,9 +165,12 @@ fn stream_buffer_pipeline_fallback_routing() {
     let default_port = default_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&stream_buffer_routing_yaml(proxy_port, claude_port, default_port)).unwrap();
-    let addr = praxis_test_utils::start_proxy(&config);
+    let proxy = praxis_test_utils::start_proxy(&config);
 
-    let raw = http_send(&addr, &json_post("/v1/chat", r#"{"model":"unknown","user_id":"u-1"}"#));
+    let raw = http_send(
+        proxy.addr(),
+        &json_post("/v1/chat", r#"{"model":"unknown","user_id":"u-1"}"#),
+    );
     assert_eq!(parse_status(&raw), 200, "unknown model routing should return 200");
     assert_eq!(
         parse_body(&raw),
@@ -217,7 +220,7 @@ filter_chains:
     let stream_port = stream_guard.release();
     let buffer_port = buffer_guard.release();
     let passthrough_port = passthrough_guard.release();
-    start_proxy_with_registry(&config, &registry);
+    let _proxy = start_proxy_with_registry(&config, &registry);
     wait_for_tcp(&format!("127.0.0.1:{buffer_port}"));
     wait_for_tcp(&format!("127.0.0.1:{passthrough_port}"));
 
@@ -298,7 +301,7 @@ filter_chains:
     let config = Config::from_yaml(&yaml).unwrap();
     let extraction_port = extraction_guard.release();
     let passthrough_port = passthrough_guard.release();
-    praxis_test_utils::start_proxy(&config);
+    let _proxy = praxis_test_utils::start_proxy(&config);
     wait_for_tcp(&format!("127.0.0.1:{passthrough_port}"));
 
     let raw = http_send(

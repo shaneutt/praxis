@@ -3,14 +3,16 @@
 
 //! Proxy startup and configuration test utilities for integration tests.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 
+use pingora_core::server::{RunArgs, ShutdownSignal, ShutdownSignalWatch};
 use praxis_core::{
     config::{Config, Listener},
     server::RuntimeOptions,
 };
 use praxis_filter::{FilterFactory, FilterPipeline, FilterRegistry, HttpFilter};
 use praxis_protocol::http::load_http_handler;
+use tokio::sync::Notify;
 
 // -----------------------------------------------------------------------------
 // Pipeline Building
@@ -67,26 +69,55 @@ pub fn build_pipeline(config: &Config) -> FilterPipeline {
 }
 
 // -----------------------------------------------------------------------------
-// Proxy Startup
+// Proxy Guard
 // -----------------------------------------------------------------------------
 
-/// Start the proxy server in a background thread.
-///
-/// Returns the address string (e.g. `"127.0.0.1:12345"`).
-///
-/// # Panics
-///
-/// Panics if `config.listeners` is empty.
-pub fn start_proxy(config: &Config) -> String {
-    start_proxy_with_registry(config, &FilterRegistry::with_builtins())
+/// Signals a Pingora server to shut down when notified.
+struct NotifyShutdownWatch {
+    /// Fires when the corresponding [`ProxyGuard`] is dropped.
+    notify: Arc<Notify>,
 }
 
-/// Start the proxy with a custom filter registry.
-///
-/// # Panics
-///
-/// Panics if `config.listeners` is empty.
-pub fn start_proxy_with_registry(config: &Config, registry: &FilterRegistry) -> String {
+#[async_trait::async_trait]
+impl ShutdownSignalWatch for NotifyShutdownWatch {
+    async fn recv(&self) -> ShutdownSignal {
+        self.notify.notified().await;
+        ShutdownSignal::FastShutdown
+    }
+}
+
+/// RAII guard that shuts down a Pingora proxy server when
+/// dropped. Returned by [`start_proxy_with_registry`] and
+/// related helpers so that test threads do not leak.
+pub struct ProxyGuard {
+    /// The address the proxy is listening on.
+    addr: String,
+    /// Fires the shutdown signal on drop.
+    notify: Arc<Notify>,
+}
+
+impl ProxyGuard {
+    /// The proxy's listen address (e.g. `"127.0.0.1:12345"`).
+    pub fn addr(&self) -> &str {
+        &self.addr
+    }
+}
+
+impl fmt::Display for ProxyGuard {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.addr)
+    }
+}
+
+impl Drop for ProxyGuard {
+    fn drop(&mut self) {
+        self.notify.notify_one();
+    }
+}
+
+/// Build a [`ProxyGuard`] by spawning a Pingora server that
+/// shuts down when the guard is dropped.
+fn spawn_proxy_server(config: &Config, registry: &FilterRegistry) -> ProxyGuard {
     let addr = config
         .listeners
         .first()
@@ -109,12 +140,47 @@ pub fn start_proxy_with_registry(config: &Config, registry: &FilterRegistry) -> 
         );
     }
 
+    let notify = Arc::new(Notify::new());
+    let watch_notify = Arc::clone(&notify);
+
     std::thread::spawn(move || {
-        server.run_forever();
+        server.run(RunArgs {
+            shutdown_signal: Box::new(NotifyShutdownWatch { notify: watch_notify }),
+        });
     });
 
-    crate::net::wait::wait_for_http(&addr);
-    addr
+    ProxyGuard { addr, notify }
+}
+
+// -----------------------------------------------------------------------------
+// Proxy Startup
+// -----------------------------------------------------------------------------
+
+/// Start the proxy server in a background thread.
+///
+/// Returns a [`ProxyGuard`] that shuts down the server when
+/// dropped. Use [`ProxyGuard::addr()`] to obtain the listen
+/// address.
+///
+/// # Panics
+///
+/// Panics if `config.listeners` is empty.
+pub fn start_proxy(config: &Config) -> ProxyGuard {
+    start_proxy_with_registry(config, &FilterRegistry::with_builtins())
+}
+
+/// Start the proxy with a custom filter registry.
+///
+/// Returns a [`ProxyGuard`] that shuts down the server when
+/// dropped.
+///
+/// # Panics
+///
+/// Panics if `config.listeners` is empty.
+pub fn start_proxy_with_registry(config: &Config, registry: &FilterRegistry) -> ProxyGuard {
+    let guard = spawn_proxy_server(config, registry);
+    crate::net::wait::wait_for_http(&guard.addr);
+    guard
 }
 
 /// Start a full proxy server (HTTP + TCP protocols) in a background thread.
@@ -129,62 +195,29 @@ pub fn start_full_proxy(config: Config) {
 /// Uses the same server construction as [`start_proxy`] but
 /// waits for TLS readiness instead of plain HTTP readiness.
 ///
-/// Returns the address string.
+/// Returns a [`ProxyGuard`] that shuts down the server when
+/// dropped.
 ///
 /// # Panics
 ///
 /// Panics if `config.listeners` is empty.
-pub fn start_tls_proxy(config: &Config, client_config: &Arc<rustls::ClientConfig>) -> String {
-    let registry = FilterRegistry::with_builtins();
-    let addr = config
-        .listeners
-        .first()
-        .expect("config must have at least one listener")
-        .address
-        .clone();
-    let mut server = praxis_core::server::build_http_server(config.shutdown_timeout_secs, &RuntimeOptions::default());
-
-    for listener in &config.listeners {
-        let pipeline = resolve_listener_pipeline(config, listener, &registry);
-        load_http_handler(&mut server, listener, pipeline).unwrap();
-    }
-
-    std::thread::spawn(move || {
-        server.run_forever();
-    });
-
-    crate::net::tls::wait_for_https(&addr, client_config);
-    addr
+pub fn start_tls_proxy(config: &Config, client_config: &Arc<rustls::ClientConfig>) -> ProxyGuard {
+    let guard = spawn_proxy_server(config, &FilterRegistry::with_builtins());
+    crate::net::tls::wait_for_https(&guard.addr, client_config);
+    guard
 }
 
 /// Start an HTTP proxy with a TLS listener without waiting for readiness.
 ///
-/// Returns the address string. The caller must wait for the proxy to
-/// become ready using an appropriate readiness check.
+/// Returns a [`ProxyGuard`] that shuts down the server when
+/// dropped. The caller must wait for the proxy to become ready
+/// using an appropriate readiness check.
 ///
 /// # Panics
 ///
 /// Panics if `config.listeners` is empty.
-pub fn start_tls_proxy_no_wait(config: &Config) -> String {
-    let registry = FilterRegistry::with_builtins();
-    let addr = config
-        .listeners
-        .first()
-        .expect("config must have at least one listener")
-        .address
-        .clone();
-    let mut server = praxis_core::server::build_http_server(config.shutdown_timeout_secs, &RuntimeOptions::default());
-
-    for listener in &config.listeners {
-        let pipeline = resolve_listener_pipeline(config, listener, &registry);
-        load_http_handler(&mut server, listener, pipeline).unwrap();
-    }
-
-    std::thread::spawn(move || {
-        server.run_forever();
-    });
-
-    addr
+pub fn start_tls_proxy_no_wait(config: &Config) -> ProxyGuard {
+    spawn_proxy_server(config, &FilterRegistry::with_builtins())
 }
 
 // -----------------------------------------------------------------------------

@@ -29,12 +29,12 @@ fn session_affinity() {
             ("127.0.0.1:3003", port_c),
         ]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let mut first_body = None;
     for _ in 0..6 {
         let raw = http_send(
-            &addr,
+            proxy.addr(),
             "GET / HTTP/1.1\r\n\
              Host: localhost\r\n\
              X-User-Id: user-42\r\n\
@@ -53,7 +53,7 @@ fn session_affinity() {
     let mut backends_seen = HashSet::new();
     for i in 0..30 {
         let raw = http_send(
-            &addr,
+            proxy.addr(),
             &format!(
                 "GET / HTTP/1.1\r\n\
                  Host: localhost\r\n\

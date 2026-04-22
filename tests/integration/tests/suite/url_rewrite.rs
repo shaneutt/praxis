@@ -22,9 +22,9 @@ fn url_rewrite_example_config() {
         proxy_port,
         HashMap::from([("127.0.0.1:3000", backend_port)]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/v1/users?debug=true", None);
+    let (status, body) = http_get(proxy.addr(), "/v1/users?debug=true", None);
     assert_eq!(status, 200, "url_rewrite config should proxy successfully");
     assert_eq!(body, "ok", "response body should pass through");
 }
@@ -62,9 +62,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _body) = http_get(&addr, "/old/resource", None);
+    let (status, _body) = http_get(proxy.addr(), "/old/resource", None);
     assert_eq!(status, 200, "rewritten request should reach backend");
 }
 
@@ -108,13 +108,13 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/api/users", None);
+    let (status, body) = http_get(proxy.addr(), "/api/users", None);
     assert_eq!(status, 200, "direct /api/ should route to api backend");
     assert_eq!(body, "api-v2", "direct /api/ should reach api backend");
 
-    let (status, body) = http_get(&addr, "/other", None);
+    let (status, body) = http_get(proxy.addr(), "/other", None);
     assert_eq!(status, 200, "non-matching path should route to fallback");
     assert_eq!(body, "fallback", "non-matching path should reach fallback backend");
 }
@@ -153,9 +153,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/data?debug=1&keep=yes", None);
+    let (status, body) = http_get(proxy.addr(), "/data?debug=1&keep=yes", None);
     assert_eq!(status, 200, "query param manipulation should work end-to-end");
     assert_eq!(body, "stripped", "response body should pass through");
 }

@@ -21,9 +21,9 @@ fn body_passthrough_without_body_filters() {
     let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&simple_proxy_yaml(proxy_port, backend_port)).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_post(&addr, "/echo", "hello world");
+    let (status, body) = http_post(proxy.addr(), "/echo", "hello world");
 
     assert_eq!(status, 200, "passthrough should return 200");
     assert_eq!(body, "hello world", "body should pass through unmodified");
@@ -36,8 +36,8 @@ fn body_uppercase_filter_transforms_request_body() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&custom_filter_yaml(proxy_port, backend_port, "body_uppercase")).unwrap();
     let registry = registry_with("body_uppercase", || Box::new(BodyUppercaseFilter::streaming()));
-    let addr = start_proxy_with_registry(&config, &registry);
-    let (status, body) = http_post(&addr, "/echo", "hello world");
+    let proxy = start_proxy_with_registry(&config, &registry);
+    let (status, body) = http_post(proxy.addr(), "/echo", "hello world");
 
     assert_eq!(status, 200, "uppercase filter should return 200");
     assert_eq!(body, "HELLO WORLD", "body should be uppercased by filter");
@@ -50,9 +50,9 @@ fn body_reject_filter_blocks_forbidden_content() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&custom_filter_yaml(proxy_port, backend_port, "body_reject")).unwrap();
     let registry = registry_with("body_reject", || Box::new(BodyRejectFilter));
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, _) = http_post(&addr, "/upload", "this is FORBIDDEN content");
+    let (status, _) = http_post(proxy.addr(), "/upload", "this is FORBIDDEN content");
 
     assert_eq!(status, 403, "forbidden content should be rejected with 403");
 }
@@ -64,9 +64,9 @@ fn body_reject_filter_allows_clean_content() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&custom_filter_yaml(proxy_port, backend_port, "body_reject")).unwrap();
     let registry = registry_with("body_reject", || Box::new(BodyRejectFilter));
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, body) = http_post(&addr, "/upload", "this is clean content");
+    let (status, body) = http_post(proxy.addr(), "/upload", "this is clean content");
 
     assert_eq!(status, 200, "clean content should return 200");
     assert_eq!(body, "this is clean content", "clean body should pass through");
@@ -81,9 +81,9 @@ fn body_buffer_mode_delivers_complete_body() {
     let registry = registry_with("body_buffered_uppercase", || {
         Box::new(BodyUppercaseFilter::buffered(1024))
     });
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, body) = http_post(&addr, "/echo", "hello world");
+    let (status, body) = http_post(proxy.addr(), "/echo", "hello world");
 
     assert_eq!(status, 200, "buffered uppercase should return 200");
     assert_eq!(body, "HELLO WORLD", "buffered body should be uppercased");
@@ -96,9 +96,9 @@ fn body_size_limit_returns_413() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&custom_filter_yaml(proxy_port, backend_port, "body_tiny_buffer")).unwrap();
     let registry = registry_with("body_tiny_buffer", || Box::new(TinyBufferFilter));
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, _) = http_post(&addr, "/upload", "this body is too large");
+    let (status, _) = http_post(proxy.addr(), "/upload", "this body is too large");
 
     assert_eq!(status, 413, "oversized body should be rejected with 413");
 }
@@ -110,8 +110,8 @@ fn async_body_filter_performs_async_work() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&custom_filter_yaml(proxy_port, backend_port, "async_body")).unwrap();
     let registry = registry_with("async_body", || Box::new(AsyncBodyFilter));
-    let addr = start_proxy_with_registry(&config, &registry);
-    let (status, body) = http_post(&addr, "/echo", "async works");
+    let proxy = start_proxy_with_registry(&config, &registry);
+    let (status, body) = http_post(proxy.addr(), "/echo", "async works");
 
     assert_eq!(status, 200, "async body filter should return 200");
     assert_eq!(body, "ASYNC WORKS", "async body filter should uppercase content");
@@ -124,9 +124,9 @@ fn body_response_reject_filter_aborts_forbidden_response() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&custom_filter_yaml(proxy_port, backend_port, "response_body_reject")).unwrap();
     let registry = registry_with("response_body_reject", || Box::new(ResponseBodyRejectFilter));
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, body) = praxis_test_utils::http_get(&addr, "/", None);
+    let (status, body) = praxis_test_utils::http_get(proxy.addr(), "/", None);
 
     assert_ne!(status, 200, "rejection should not return 200");
     assert!(
@@ -142,9 +142,9 @@ fn body_response_reject_filter_allows_clean_response() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&custom_filter_yaml(proxy_port, backend_port, "response_body_reject")).unwrap();
     let registry = registry_with("response_body_reject", || Box::new(ResponseBodyRejectFilter));
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, body) = praxis_test_utils::http_get(&addr, "/", None);
+    let (status, body) = praxis_test_utils::http_get(proxy.addr(), "/", None);
 
     assert_eq!(status, 200, "clean response should return 200");
     assert_eq!(
@@ -160,9 +160,9 @@ fn body_uppercase_filter_transforms_response_body() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&custom_filter_yaml(proxy_port, backend_port, "response_body_uppercase")).unwrap();
     let registry = registry_with("response_body_uppercase", || Box::new(ResponseBodyUppercaseFilter));
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, body) = praxis_test_utils::http_get(&addr, "/", None);
+    let (status, body) = praxis_test_utils::http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "response uppercase should return 200");
     assert_eq!(body, "HELLO WORLD", "response body should be uppercased");
 }
@@ -174,9 +174,9 @@ fn filter_error_in_on_request_returns_500() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&custom_filter_yaml(proxy_port, backend_port, "error_on_request")).unwrap();
     let registry = registry_with("error_on_request", || Box::new(ErrorOnRequestFilter));
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, _) = http_post(&addr, "/anything", "hello");
+    let (status, _) = http_post(proxy.addr(), "/anything", "hello");
 
     assert_eq!(
         status, 500,
@@ -191,9 +191,9 @@ fn filter_error_in_request_body_returns_500() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&custom_filter_yaml(proxy_port, backend_port, "error_on_body")).unwrap();
     let registry = registry_with("error_on_body", || Box::new(ErrorOnBodyFilter));
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, _) = http_post(&addr, "/upload", "some payload");
+    let (status, _) = http_post(proxy.addr(), "/upload", "some payload");
 
     assert_eq!(
         status, 500,
@@ -208,9 +208,9 @@ fn filter_rejection_with_custom_status_propagates() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&custom_filter_yaml(proxy_port, backend_port, "reject_418")).unwrap();
     let registry = registry_with("reject_418", || Box::new(Reject418Filter));
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, _) = http_post(&addr, "/teapot", "brew");
+    let (status, _) = http_post(proxy.addr(), "/teapot", "brew");
 
     assert_eq!(
         status, 418,
@@ -224,11 +224,11 @@ fn body_size_limit_without_content_length_enforced() {
     let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&body_limit_yaml(proxy_port, backend_port, 16)).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let oversized = "x".repeat(64);
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &format!(
             "POST /echo HTTP/1.1\r\n\
              Host: localhost\r\n\
@@ -256,9 +256,9 @@ fn response_body_over_limit_returns_error() {
     let proxy_port = free_port();
     let config = Config::from_yaml(&body_limit_yaml_response(proxy_port, backend_port, 64)).unwrap();
     let registry = registry_with("response_body_reject_large", || Box::new(ResponseBodyLimitCheckFilter));
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, body) = praxis_test_utils::http_get(&addr, "/", None);
+    let (status, body) = praxis_test_utils::http_get(proxy.addr(), "/", None);
 
     assert!(
         status == 502 || status == 500 || body.len() <= 64,
@@ -273,10 +273,10 @@ fn body_size_limit_under_limit_succeeds() {
     let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&body_limit_yaml(proxy_port, backend_port, 64)).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let payload = "a".repeat(32);
-    let (status, body) = http_post(&addr, "/echo", &payload);
+    let (status, body) = http_post(proxy.addr(), "/echo", &payload);
 
     assert_eq!(status, 200, "32-byte body under 64-byte limit should succeed");
     assert_eq!(body, payload, "body well under the limit should be forwarded intact");
@@ -288,10 +288,10 @@ fn body_size_limit_exact_boundary_succeeds() {
     let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&body_limit_yaml(proxy_port, backend_port, 64)).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let payload = "b".repeat(64);
-    let (status, body) = http_post(&addr, "/echo", &payload);
+    let (status, body) = http_post(proxy.addr(), "/echo", &payload);
 
     assert_eq!(status, 200, "64-byte body at exactly the 64-byte limit should succeed");
     assert_eq!(body, payload, "body exactly at the limit should be forwarded intact");
@@ -303,10 +303,10 @@ fn body_size_limit_one_byte_over_rejected() {
     let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&body_limit_yaml(proxy_port, backend_port, 64)).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let payload = "c".repeat(65);
-    let (status, _) = http_post(&addr, "/echo", &payload);
+    let (status, _) = http_post(proxy.addr(), "/echo", &payload);
 
     assert_eq!(
         status, 413,

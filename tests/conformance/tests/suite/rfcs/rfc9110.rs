@@ -33,10 +33,10 @@ fn rfc9110_multiple_host_headers_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: alpha.example.com\r\n\
          Host: beta.example.com\r\n\
@@ -62,9 +62,9 @@ fn rfc9110_host_mismatch_with_absolute_uri() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET http://example.com/ HTTP/1.1\r\n\
          Host: other.example.com\r\n\
          Connection: close\r\n\r\n",
@@ -93,9 +93,9 @@ fn rfc9110_trace_request_handled() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "TRACE / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close\r\n\r\n",
@@ -123,10 +123,10 @@ fn rfc9110_duplicate_cl_different_values_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Content-Length: 5\r\n\
@@ -154,10 +154,10 @@ fn rfc9110_duplicate_cl_same_value_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Content-Length: 5\r\n\
@@ -188,9 +188,9 @@ fn rfc9110_connection_refused_returns_502() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, dead_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _body) = http_get(&addr, "/", None);
+    let (status, _body) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 502,
         "connection refused upstream must produce 502 (RFC 9110 S15.6.3)"
@@ -208,9 +208,9 @@ fn rfc9110_garbage_upstream_returns_502() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _body) = http_get(&addr, "/", None);
+    let (status, _body) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 502,
         "garbage upstream response must produce 502 (RFC 9110 S15.6.3)"
@@ -228,9 +228,9 @@ fn rfc9110_incomplete_upstream_returns_502() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _body) = http_get(&addr, "/", None);
+    let (status, _body) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 502,
         "incomplete upstream response must produce 502 (RFC 9110 S15.6.3)"
@@ -251,9 +251,9 @@ fn rfc9110_upstream_timeout_returns_504() {
     let proxy_port = free_port();
     let yaml = timeout_filter_yaml(proxy_port, slow_port, 100);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, _body) = http_get(&addr, "/", None);
+    let (status, _body) = http_get(proxy.addr(), "/", None);
     assert_eq!(
         status, 504,
         "upstream exceeding timeout must produce 504 (RFC 9110 S15.6.5)"
@@ -270,9 +270,9 @@ fn rfc9110_upstream_within_timeout_succeeds() {
     let proxy_port = free_port();
     let yaml = timeout_filter_yaml(proxy_port, backend_port, 5000);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "upstream within timeout must succeed (RFC 9110 S15.6.5)");
     assert_eq!(body, "fast-response", "response body must pass through correctly");
 }
@@ -293,10 +293,10 @@ fn rfc9110_custom_header_forwarded_to_upstream() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Custom-Widget: test-value-42\r\n\
@@ -322,9 +322,12 @@ fn rfc9110_custom_response_header_forwarded_to_client() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let status = parse_status(&raw);
     let header_val = parse_header(&raw, "x-custom-response");
 
@@ -347,10 +350,10 @@ fn rfc9110_connection_listed_header_stripped() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close, X-Secret-Hop\r\n\
@@ -376,10 +379,10 @@ fn rfc9110_multiple_custom_headers_all_forwarded() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-First: alpha\r\n\
@@ -416,10 +419,10 @@ fn rfc9110_uncommon_standard_header_forwarded() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Accept-Patch: application/json\r\n\
@@ -449,10 +452,10 @@ fn rfc9110_if_none_match_forwarded_to_upstream() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          If-None-Match: \"abc123\"\r\n\
@@ -478,10 +481,10 @@ fn rfc9110_if_modified_since_forwarded_to_upstream() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          If-Modified-Since: Sat, 01 Jan 2025 00:00:00 GMT\r\n\
@@ -507,9 +510,12 @@ fn rfc9110_etag_forwarded_to_client() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let status = parse_status(&raw);
     let etag = parse_header(&raw, "etag");
 
@@ -532,10 +538,10 @@ fn rfc9110_304_not_modified_forwarded() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          If-None-Match: \"v1-abc\"\r\n\
@@ -566,10 +572,10 @@ fn rfc9110_range_header_forwarded_to_upstream() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Range: bytes=0-99\r\n\
@@ -596,10 +602,10 @@ fn rfc9110_206_partial_content_forwarded() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Range: bytes=0-4\r\n\
@@ -632,9 +638,12 @@ fn rfc9110_301_redirect_forwarded() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let status = parse_status(&raw);
     let location = parse_header(&raw, "location");
 
@@ -656,9 +665,12 @@ fn rfc9110_302_redirect_forwarded() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let status = parse_status(&raw);
     let location = parse_header(&raw, "location");
 
@@ -680,9 +692,12 @@ fn rfc9110_307_redirect_forwarded() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let status = parse_status(&raw);
     let location = parse_header(&raw, "location");
 
@@ -704,9 +719,12 @@ fn rfc9110_308_redirect_forwarded() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let status = parse_status(&raw);
     let location = parse_header(&raw, "location");
 
@@ -732,10 +750,10 @@ fn rfc9110_via_header_added_to_request() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close\r\n\r\n",
@@ -760,10 +778,10 @@ fn rfc9110_via_header_added_to_response() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close\r\n\r\n",
@@ -789,10 +807,10 @@ fn rfc9110_via_header_appended_not_replaced() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Via: 1.0 downstream\r\n\
@@ -818,10 +836,10 @@ fn rfc9110_via_header_h2_client_gets_2_0() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
-    wait_for_http2(&addr);
+    let proxy = start_proxy(&config);
+    wait_for_http2(proxy.addr());
 
-    let (response, _body) = h2c_get(&addr, "/");
+    let (response, _body) = h2c_get(proxy.addr(), "/");
     let via = response.headers().get("via").and_then(|v| v.to_str().ok());
 
     assert!(
@@ -844,10 +862,10 @@ fn rfc9110_max_forwards_decremented_on_options() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "OPTIONS / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Max-Forwards: 1\r\n\
@@ -874,10 +892,10 @@ fn rfc9110_max_forwards_zero_trace_returns_200() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "TRACE / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Max-Forwards: 0\r\n\
@@ -907,10 +925,10 @@ fn rfc9110_no_max_forwards_forwarded_normally() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "OPTIONS / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close\r\n\r\n",
@@ -939,10 +957,10 @@ fn rfc9110_te_header_stripped_from_upstream_request() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          TE: gzip, chunked\r\n\
@@ -973,11 +991,11 @@ fn rfc9110_100_continue_allows_body_upload() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let body_data = "test-payload-data";
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &format!(
             "POST / HTTP/1.1\r\n\
              Host: localhost\r\n\
@@ -1017,10 +1035,10 @@ fn rfc9110_max_forwards_ignored_on_get() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Max-Forwards: 0\r\n\
@@ -1054,10 +1072,10 @@ fn rfc9110_multiple_connection_headers_all_tokens_stripped() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Connection: close, X-Custom1\r\n\
@@ -1086,6 +1104,6 @@ fn rfc9110_multiple_connection_headers_all_tokens_stripped() {
 
 /// Wrapper for [`praxis_test_utils::start_proxy`] used across
 /// RFC 9110 tests.
-fn start_proxy(config: &Config) -> String {
+fn start_proxy(config: &Config) -> praxis_test_utils::ProxyGuard {
     praxis_test_utils::start_proxy(config)
 }

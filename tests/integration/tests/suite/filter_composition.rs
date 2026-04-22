@@ -57,9 +57,12 @@ filter_chains:
             praxis_filter::FilterFactory::Http(std::sync::Arc::new(|_| Ok(Box::new(SecondRequestFilter)))),
         )
         .expect("duplicate filter name");
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let body = parse_body(&raw);
     let body_lower = body.to_lowercase();
     assert!(
@@ -115,9 +118,9 @@ filter_chains:
             praxis_filter::FilterFactory::Http(std::sync::Arc::new(|_| Ok(Box::new(FirstRequestFilter)))),
         )
         .expect("duplicate filter name");
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let (status, _body) = http_get(&addr, "/", None);
+    let (status, _body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 403, "reject filter should produce 403 before other filters run");
 }
 
@@ -164,9 +167,12 @@ filter_chains:
             praxis_filter::FilterFactory::Http(std::sync::Arc::new(|_| Ok(Box::new(ResponseBetaFilter)))),
         )
         .expect("duplicate filter name");
-    let addr = start_proxy_with_registry(&config, &registry);
+    let proxy = start_proxy_with_registry(&config, &registry);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let status = parse_status(&raw);
     assert_eq!(status, 200, "composed response should return 200");
     let raw_lower = raw.to_lowercase();
@@ -213,10 +219,10 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET /test HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
     );
     let status = parse_status(&raw);
@@ -262,9 +268,12 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let status = parse_status(&raw);
     assert_eq!(status, 200, "request_id + headers composition should return 200");
 
@@ -319,10 +328,10 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET /other HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
     );
     let body = parse_body(&raw);
@@ -337,7 +346,7 @@ filter_chains:
     );
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET /api/data HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
     );
     let body = parse_body(&raw);

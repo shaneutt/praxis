@@ -21,7 +21,7 @@ fn connection_header_declared_headers_stripped_from_upstream() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let request = "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
@@ -29,7 +29,7 @@ fn connection_header_declared_headers_stripped_from_upstream() {
          X-Secret-Header: leaked\r\n\
          X-Safe: visible\r\n\
          \r\n";
-    let raw = http_send(&addr, request);
+    let raw = http_send(proxy.addr(), request);
     let body = parse_body(&raw);
     let body_lower = body.to_lowercase();
 
@@ -50,7 +50,7 @@ fn oversized_header_value_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let huge_value = "X".repeat(64 * 1024);
     let request = format!(
@@ -60,7 +60,7 @@ fn oversized_header_value_rejected() {
          Connection: close\r\n\
          \r\n"
     );
-    let raw = http_send(&addr, &request);
+    let raw = http_send(proxy.addr(), &request);
     let status = parse_status(&raw);
 
     assert!(
@@ -77,7 +77,7 @@ fn multiple_connection_nominated_headers_all_stripped() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let request = "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
@@ -86,7 +86,7 @@ fn multiple_connection_nominated_headers_all_stripped() {
          X-Token: auth-secret\r\n\
          X-Public: visible\r\n\
          \r\n";
-    let raw = http_send(&addr, request);
+    let raw = http_send(proxy.addr(), request);
     let body = parse_body(&raw);
     let body_lower = body.to_lowercase();
 
@@ -111,7 +111,7 @@ fn hop_by_hop_upgrade_header_stripped() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let request = "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
@@ -119,7 +119,7 @@ fn hop_by_hop_upgrade_header_stripped() {
          Connection: Upgrade\r\n\
          X-Normal: keep\r\n\
          \r\n";
-    let raw = http_send(&addr, request);
+    let raw = http_send(proxy.addr(), request);
     let body = parse_body(&raw);
     let body_lower = body.to_lowercase();
 
@@ -140,7 +140,7 @@ fn keep_alive_header_stripped_from_upstream() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let request = "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
@@ -148,7 +148,7 @@ fn keep_alive_header_stripped_from_upstream() {
          Keep-Alive: timeout=300\r\n\
          Accept: text/html\r\n\
          \r\n";
-    let raw = http_send(&addr, request);
+    let raw = http_send(proxy.addr(), request);
     let body = parse_body(&raw);
     let body_lower = body.to_lowercase();
 
@@ -169,14 +169,14 @@ fn proxy_authorization_stripped_from_upstream() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let request = "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          Proxy-Authorization: Basic dGVzdDp0ZXN0\r\n\
          Authorization: Bearer real-token\r\n\
          \r\n";
-    let raw = http_send(&addr, request);
+    let raw = http_send(proxy.addr(), request);
     let body = parse_body(&raw);
     let body_lower = body.to_lowercase();
 
@@ -220,14 +220,14 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let request = "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-For: 10.10.10.10\r\n\
          X-Forwarded-Proto: https\r\n\
          \r\n";
-    let raw = http_send(&addr, request);
+    let raw = http_send(proxy.addr(), request);
     let body = parse_body(&raw);
 
     assert!(
@@ -277,10 +277,10 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let request = "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
-    let raw = http_send(&addr, request);
+    let raw = http_send(proxy.addr(), request);
 
     assert_eq!(
         parse_header(&raw, "x-safe-response"),

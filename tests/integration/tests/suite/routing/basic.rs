@@ -18,8 +18,11 @@ fn get_to_dead_backend_returns_502() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, dead_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
-    let raw = http_send(&addr, "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    let proxy = start_proxy(&config);
+    let raw = http_send(
+        proxy.addr(),
+        "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+    );
     let status = parse_status(&raw);
     assert_eq!(status, 502, "expected 502 for dead backend, got: {raw}");
 }
@@ -30,9 +33,9 @@ fn post_to_dead_backend_returns_502() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, dead_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello",
     );
     let status = parse_status(&raw);
@@ -45,9 +48,9 @@ fn basic_proxy() {
     let backend_port = backend_port_guard.port();
     let proxy_port = free_port();
     let config = Config::from_yaml(&simple_proxy_yaml(proxy_port, backend_port)).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
-    let (status, body) = http_get(&addr, "/", None);
+    let (status, body) = http_get(proxy.addr(), "/", None);
     assert_eq!(status, 200, "basic proxy should return 200");
     assert_eq!(body, "hello from backend", "proxy should forward backend response");
 }
@@ -86,13 +89,13 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let mut count_a = 0u32;
     let mut count_b = 0u32;
     let mut count_c = 0u32;
     for _ in 0..15 {
-        let (_status, body) = http_get(&addr, "/", None);
+        let (_status, body) = http_get(proxy.addr(), "/", None);
         match body.as_str() {
             "backend-a" => count_a += 1,
             "backend-b" => count_b += 1,

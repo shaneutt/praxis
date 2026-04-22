@@ -18,7 +18,7 @@ fn crlf_in_header_value_rejected_or_sanitized() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let request_bytes =
         b"GET / HTTP/1.1\r\nHost: localhost\r\nX-Test: safe\r\nX-Injected: true\r\nConnection: close\r\n\r\n";
     let raw = {
@@ -28,7 +28,7 @@ fn crlf_in_header_value_rejected_or_sanitized() {
             time::Duration,
         };
 
-        let mut stream = TcpStream::connect(&addr).unwrap();
+        let mut stream = TcpStream::connect(proxy.addr()).unwrap();
         stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
         stream.write_all(request_bytes).unwrap();
 
@@ -51,10 +51,10 @@ fn crlf_in_header_name_rejected() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Bad\r\nName: value\r\n\
@@ -93,9 +93,9 @@ filter_chains:
     );
 
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\n\
          Host: localhost\r\n\
          X-Forwarded-For: 10.0.0.99\r\n\
@@ -117,11 +117,11 @@ fn oversized_header_handled_gracefully() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let big_value = "A".repeat(8 * 1024);
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &format!(
             "GET / HTTP/1.1\r\n\
              Host: localhost\r\n\
@@ -139,10 +139,10 @@ fn null_bytes_in_headers_handled() {
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET / HTTP/1.1\r\nHost: localhost\r\nX-Null: before\x00after\r\nConnection: close\r\n\r\n",
     );
     let status = parse_status(&raw);

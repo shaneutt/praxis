@@ -20,9 +20,9 @@ fn redirect_returns_301_with_location() {
         proxy_port,
         HashMap::from([("127.0.0.1:8081", migration_port)]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET /some/path HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(parse_status(&raw), 301, "redirect should return 301");
@@ -102,9 +102,9 @@ filter_chains:
 "#
     .replace("PORT", &proxy_port.to_string());
     let config = praxis_core::config::Config::from_yaml(&config_yaml).unwrap();
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "GET /landing?ref=home HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(parse_status(&raw), 302, "should return 302 Found");
@@ -124,9 +124,9 @@ fn redirect_works_for_post_method() {
         proxy_port,
         HashMap::from([("127.0.0.1:8081", migration_port)]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         "POST /form HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
     );
     assert_eq!(parse_status(&raw), 301, "POST should also get redirected");

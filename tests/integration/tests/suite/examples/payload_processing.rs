@@ -36,10 +36,10 @@ fn ai_inference_body_based_routing_matches_model() {
             ("10.0.3.1:8080", default_port),
         ]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &json_post(
             "/v1/chat/completions",
             r#"{"model":"mistral-7b-instruct","messages":[]}"#,
@@ -74,10 +74,10 @@ fn ai_inference_body_based_routing_falls_through_to_default() {
             ("10.0.3.1:8080", default_port),
         ]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &json_post("/v1/chat/completions", r#"{"model":"unknown-model","messages":[]}"#),
     );
     assert_eq!(parse_status(&raw), 200, "unknown model should return 200");
@@ -104,10 +104,10 @@ fn multi_field_extraction_extracts_both_fields() {
             ("10.0.3.1:8080", backend_port),
         ]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &json_post(
             "/v1/chat/completions",
             r#"{"model":"claude-sonnet-4-5","user_id":"u-42"}"#,
@@ -144,10 +144,10 @@ fn multi_field_extraction_routes_by_model() {
             ("10.0.3.1:8080", default_port),
         ]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &json_post(
             "/v1/chat/completions",
             r#"{"model":"claude-sonnet-4-5","user_id":"u-42"}"#,
@@ -176,10 +176,10 @@ fn conditional_field_extraction_fires_on_v1_path() {
             ("10.0.3.1:8080", backend_port),
         ]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &json_post(
             "/v1/chat/completions",
             r#"{"model":"mistral-large-latest","messages":[]}"#,
@@ -208,10 +208,10 @@ fn conditional_field_extraction_skips_on_non_v1_path() {
             ("10.0.3.1:8080", backend_port),
         ]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &json_post("/healthz", r#"{"model":"mistral-large-latest","messages":[]}"#),
     );
     assert_eq!(parse_status(&raw), 200, "non-v1 path should return 200");
@@ -242,10 +242,10 @@ fn field_extraction_access_control_routes_acme() {
             ("10.0.3.1:8080", default_port),
         ]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &json_post("/api/data", r#"{"tenant_id":"acme","query":"SELECT *"}"#),
     );
     assert_eq!(parse_status(&raw), 200, "acme tenant should return 200");
@@ -276,10 +276,10 @@ fn field_extraction_access_control_routes_globex() {
             ("10.0.3.1:8080", default_port),
         ]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &json_post("/api/data", r#"{"tenant_id":"globex","query":"SELECT *"}"#),
     );
     assert_eq!(parse_status(&raw), 200, "globex tenant should return 200");
@@ -310,10 +310,10 @@ fn field_extraction_access_control_unknown_tenant_to_default() {
             ("10.0.3.1:8080", default_port),
         ]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &json_post("/api/data", r#"{"tenant_id":"unknown","query":"SELECT *"}"#),
     );
     assert_eq!(parse_status(&raw), 200, "unknown tenant should return 200");
@@ -335,10 +335,10 @@ fn body_size_limit_allows_small_body() {
         proxy_port,
         HashMap::from([("127.0.0.1:3000", backend_port)]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &json_post("/v1/chat", r#"{"model":"claude-sonnet-4-5","prompt":"hello"}"#),
     );
     assert_eq!(parse_status(&raw), 200, "small body under 1024 limit should return 200");
@@ -355,10 +355,10 @@ fn body_size_limit_rejects_oversized_body() {
         proxy_port,
         HashMap::from([("127.0.0.1:3000", backend_port)]),
     );
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let large_body = format!(r#"{{"model":"claude-sonnet-4-5","prompt":"{}"}}"#, "x".repeat(2000));
-    let raw = http_send(&addr, &json_post("/v1/chat", &large_body));
+    let raw = http_send(proxy.addr(), &json_post("/v1/chat", &large_body));
     assert_eq!(parse_status(&raw), 413, "oversized body should be rejected with 413");
 }
 
@@ -382,7 +382,7 @@ fn multi_listener_body_pipeline_passthrough() {
         .replace("127.0.0.1:3001", &format!("127.0.0.1:{claude_port}"));
     let config = Config::from_yaml(&patched).unwrap();
 
-    let _addr = start_proxy(&config);
+    let _proxy = start_proxy(&config);
     let passthrough_addr = format!("127.0.0.1:{proxy_passthrough}");
     wait_for_tcp(&passthrough_addr);
 
@@ -414,10 +414,10 @@ fn multi_listener_body_pipeline_stream_buffer_routes() {
         .replace("127.0.0.1:3001", &format!("127.0.0.1:{claude_port}"));
     let config = Config::from_yaml(&patched).unwrap();
 
-    let addr = start_proxy(&config);
+    let proxy = start_proxy(&config);
 
     let raw = http_send(
-        &addr,
+        proxy.addr(),
         &json_post("/v1/chat", r#"{"model":"claude-sonnet-4-5","user_id":"u-1"}"#),
     );
     assert_eq!(parse_status(&raw), 200, "stream-buffer listener should return 200");
