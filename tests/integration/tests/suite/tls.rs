@@ -1779,6 +1779,7 @@ filter_chains:
     );
 }
 
+#[cfg(any(not(target_os = "macos"), feature = "no-mac-cert-rotation-tests"))]
 #[test]
 fn hot_reload_serves_rotated_certificate() {
     let original = TestCertificates::generate();
