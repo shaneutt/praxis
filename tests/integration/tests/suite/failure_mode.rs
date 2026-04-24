@@ -5,8 +5,11 @@
 
 use std::sync::Arc;
 
+use bytes::Bytes;
 use praxis_core::config::Config;
-use praxis_filter::{FilterAction, FilterError, FilterFactory, FilterRegistry, HttpFilter, HttpFilterContext};
+use praxis_filter::{
+    BodyAccess, BodyMode, FilterAction, FilterError, FilterFactory, FilterRegistry, HttpFilter, HttpFilterContext,
+};
 use praxis_test_utils::{free_port, http_post, registry_with, start_echo_backend, start_proxy_with_registry};
 
 // -----------------------------------------------------------------------------
@@ -187,6 +190,24 @@ filter_chains:
     );
 }
 
+#[test]
+fn failure_mode_open_on_request_body_error_still_succeeds() {
+    let backend_port = start_echo_backend();
+    let proxy_port = free_port();
+    let yaml = make_yaml(proxy_port, backend_port, "body_error", "open");
+    let config = Config::from_yaml(&yaml).unwrap();
+    let registry = registry_with("body_error", || Box::new(RequestBodyErrorFilter));
+    let addr = start_proxy_with_registry(&config, &registry);
+
+    let (status, body) = http_post(&addr, "/", "hello");
+
+    assert_eq!(
+        status, 200,
+        "failure_mode: open on_request_body error should still return 200"
+    );
+    assert_eq!(body, "hello", "backend should echo the request body");
+}
+
 // -----------------------------------------------------------------------------
 // Test Utilities
 // -----------------------------------------------------------------------------
@@ -239,6 +260,39 @@ impl HttpFilter for AlwaysErrorFilter {
 
     async fn on_request(&self, _ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
         Err("deliberate failure_mode test error".into())
+    }
+}
+
+/// A filter that passes `on_request` but errors in `on_request_body`.
+struct RequestBodyErrorFilter;
+
+#[async_trait::async_trait]
+impl HttpFilter for RequestBodyErrorFilter {
+    fn name(&self) -> &'static str {
+        "body_error"
+    }
+
+    fn request_body_access(&self) -> BodyAccess {
+        BodyAccess::ReadOnly
+    }
+
+    fn request_body_mode(&self) -> BodyMode {
+        BodyMode::StreamBuffer {
+            max_bytes: Some(1_048_576),
+        }
+    }
+
+    async fn on_request(&self, _ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+        Ok(FilterAction::Continue)
+    }
+
+    async fn on_request_body(
+        &self,
+        _ctx: &mut HttpFilterContext<'_>,
+        _body: &mut Option<Bytes>,
+        _end_of_stream: bool,
+    ) -> Result<FilterAction, FilterError> {
+        Err("deliberate on_request_body error".into())
     }
 }
 
