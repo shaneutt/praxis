@@ -73,44 +73,6 @@ struct TinyStreamBufferFilter {
     max_bytes: usize,
 }
 
-/// Start a proxy with a tiny stream buffer filter and return the backend and proxy guards.
-fn setup(max_bytes: usize) -> (BackendGuard, ProxyGuard) {
-    let backend = start_backend_with_shutdown("ok");
-    let backend_port = backend.port();
-    let proxy_port = free_port();
-    let yaml = format!(
-        r#"
-listeners:
-  - name: default
-    address: "127.0.0.1:{proxy_port}"
-    filter_chains: [main]
-filter_chains:
-  - name: main
-    filters:
-      - filter: tiny_stream_buffer
-        max_bytes: {max_bytes}
-      - filter: router
-        routes:
-          - path_prefix: "/"
-            cluster: backend
-      - filter: load_balancer
-        clusters:
-          - name: backend
-            endpoints:
-              - "127.0.0.1:{backend_port}"
-"#
-    );
-    let config = Config::from_yaml(&yaml).unwrap();
-    let mut registry = FilterRegistry::with_builtins();
-    registry
-        .register(
-            "tiny_stream_buffer",
-            FilterFactory::Http(Arc::new(TinyStreamBufferFilter::from_config)),
-        )
-        .expect("duplicate filter name");
-    (backend, start_proxy_with_registry(&config, &registry))
-}
-
 impl TinyStreamBufferFilter {
     fn from_config(config: &serde_yaml::Value) -> Result<Box<dyn HttpFilter>, FilterError> {
         #[derive(serde::Deserialize)]
@@ -154,3 +116,40 @@ impl HttpFilter for TinyStreamBufferFilter {
     }
 }
 
+/// Start a proxy with a tiny stream buffer filter and return the backend and proxy guards.
+fn setup(max_bytes: usize) -> (BackendGuard, ProxyGuard) {
+    let backend = start_backend_with_shutdown("ok");
+    let backend_port = backend.port();
+    let proxy_port = free_port();
+    let yaml = format!(
+        r#"
+listeners:
+  - name: default
+    address: "127.0.0.1:{proxy_port}"
+    filter_chains: [main]
+filter_chains:
+  - name: main
+    filters:
+      - filter: tiny_stream_buffer
+        max_bytes: {max_bytes}
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:{backend_port}"
+"#
+    );
+    let config = Config::from_yaml(&yaml).unwrap();
+    let mut registry = FilterRegistry::with_builtins();
+    registry
+        .register(
+            "tiny_stream_buffer",
+            FilterFactory::Http(Arc::new(TinyStreamBufferFilter::from_config)),
+        )
+        .expect("duplicate filter name");
+    (backend, start_proxy_with_registry(&config, &registry))
+}
