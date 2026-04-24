@@ -1,0 +1,69 @@
+# Multiple Branches (first-match-wins for non-Next rejoin)
+#
+# Multiple branches on a single filter, evaluated in
+# order. Conditional branches with terminal or skip-to
+# rejoin stop evaluation on first match. Unconditional
+# branches with rejoin: next always fire as side-effects.
+#
+# Use case: guardrails categorizes requests as blocked
+# or passed. Blocked requests terminate; passed requests
+# get tagged and continue.
+
+listeners:
+  - name: web
+    address: "127.0.0.1:8080"
+    filter_chains: [main]
+
+filter_chains:
+  - name: main
+    filters:
+      # Stamp each request for tracing
+      - filter: request_id
+
+      # Guardrails: inspect headers. action: flag writes
+      # results without rejecting, so branches decide.
+      - filter: guardrails
+        action: flag
+        rules:
+          - target: header
+            name: "X-Danger"
+            contains: "true"
+        branch_chains:
+          # Blocked content terminates with 403
+          - name: blocked_path
+            on_result:
+              filter: guardrails
+              result: blocked
+            rejoin: terminal
+            chains:
+              - name: blocked_response
+                filters:
+                  - filter: static_response
+                    status: 403
+
+          # Passed content gets tagged and continues
+          - name: passed_path
+            on_result:
+              filter: guardrails
+              result: passed
+            rejoin: next
+            chains:
+              - name: passed_processing
+                filters:
+                  - filter: headers
+                    request_add:
+                      - name: X-Guardrails
+                        value: "passed"
+
+      # All non-terminal paths converge here
+      - filter: router
+        name: routing
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"

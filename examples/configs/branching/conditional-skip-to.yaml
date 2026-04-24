@@ -1,0 +1,69 @@
+# Conditional Skip-To Branch (on_result + rejoin: <named>)
+#
+# Skips browser-facing middleware for clean requests.
+# When guardrails reports status=passed, the branch
+# fires and resumes directly at the routing filter,
+# bypassing CORS and forwarded_headers that only add
+# overhead for already-validated traffic.
+#
+# Use case: clean requests that pass guardrails don't
+# need extra middleware processing.
+
+listeners:
+  - name: web
+    address: "127.0.0.1:8080"
+    filter_chains: [main]
+
+filter_chains:
+  - name: main
+    filters:
+      # Stamp each request for tracing
+      - filter: request_id
+
+      # Guardrails: inspect headers. action: flag writes
+      # results without rejecting, so branches decide.
+      - filter: guardrails
+        action: flag
+        rules:
+          - target: header
+            name: "X-Danger"
+            contains: "true"
+        branch_chains:
+          # Clean requests skip browser middleware and
+          # jump straight to routing
+          - name: skip_to_routing
+            on_result:
+              filter: guardrails
+              result: passed
+            # Rejoin at the named "routing" filter,
+            # skipping cors and forwarded_headers
+            rejoin: routing
+            chains:
+              - name: clean_prep
+                filters:
+                  # Tag the request as clean before
+                  # it reaches routing
+                  - filter: headers
+                    request_add:
+                      - name: X-Clean
+                        value: "true"
+
+      # Browser-facing middleware: skipped for clean
+      - filter: cors
+        allow_origins:
+          - "*"
+
+      - filter: forwarded_headers
+
+      # Named target for skip-to rejoin
+      - filter: router
+        name: routing
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"

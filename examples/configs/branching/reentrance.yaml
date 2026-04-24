@@ -1,0 +1,75 @@
+# Re-entrant Branch (rejoin to earlier filter + max_iterations)
+#
+# Loops back to a named filter up to N times. When the
+# classify filter reports action=retry, the branch fires
+# and re-executes from the classify filter. Limited to 2
+# iterations to prevent infinite loops.
+#
+# Use case: an auth filter reporting action=refresh_needed
+# triggers token refresh and re-runs auth. Or a classifier
+# that re-evaluates after header mutation.
+#
+# NOTE: The on_result condition here is a template. The
+# headers filter does not produce filter results. When a
+# result-producing filter (e.g. auth, classifier) is
+# added, it would write results that trigger this branch.
+
+listeners:
+  - name: web
+    address: "127.0.0.1:8080"
+    filter_chains: [main]
+
+filter_chains:
+  - name: main
+    filters:
+      # Stamp each request for tracing
+      - filter: request_id
+
+      # Classifier: may request re-evaluation after
+      # the branch mutates headers
+      - filter: headers
+        # Named so the branch can rejoin back here
+        name: classify
+        request_add:
+          - name: X-Classify
+            value: "run"
+        branch_chains:
+          # Re-run classification when the filter
+          # requests a retry (e.g. after token refresh)
+          - name: reclassify
+            # Template condition: fires when classifier
+            # reports action=retry
+            on_result:
+              filter: headers
+              key: action
+              result: retry
+            # Rejoin at the classify filter itself,
+            # creating a loop
+            rejoin: classify
+            # Cap iterations to prevent infinite loops;
+            # 2 retries is enough for token refresh or
+            # reclassification scenarios
+            max_iterations: 2
+            chains:
+              - name: retry_prep
+                filters:
+                  # Mutate headers before re-running
+                  # classification (e.g. attach refreshed
+                  # token)
+                  - filter: headers
+                    request_add:
+                      - name: X-Retry
+                        value: "true"
+
+      # Normal flow after classification settles
+      - filter: router
+        name: routing
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"

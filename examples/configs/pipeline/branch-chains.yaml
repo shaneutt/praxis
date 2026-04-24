@@ -1,0 +1,172 @@
+# Branch Chains: conditional branching in filter pipelines
+#
+# Filters write structured results to FilterResultSet.
+# The pipeline executor reads these to evaluate branch
+# conditions. When a branch matches, its chains execute
+# and the pipeline resumes at the configured rejoin point.
+#
+# Five scenarios demonstrated:
+#
+#   1. Unconditional branch with rejoin: next
+#      Always runs the utility chain, then continues
+#      with the next filter in the parent chain.
+#
+#   2. Conditional branch (on_result) with rejoin: terminal
+#      Stops the parent chain when a filter result matches.
+#
+#   3. Conditional branch with rejoin to a named filter (SkipTo)
+#      Skips intermediate filters and resumes at routing.
+#
+#   4. Re-entrance with max_iterations
+#      Loops back to a named filter up to N times.
+#
+#   5. Named chain reference
+#      References a top-level chain by name instead of
+#      defining filters inline.
+#
+#   6. Cross-chain rejoin via flat pipeline
+#      A listener references [preprocessing, main]. Both
+#      chains are concatenated into one flat pipeline, so
+#      a branch in preprocessing can rejoin at a named
+#      filter in main using just the filter name. No
+#      colon syntax needed.
+
+listeners:
+  - name: web
+    address: "127.0.0.1:8080"
+    filter_chains: [preprocessing, main]
+
+filter_chains:
+  # Reusable chain referenced by name from a branch.
+  - name: utility
+    filters:
+      - filter: headers
+        request_add:
+          - name: X-Utility
+            value: "applied"
+
+  # Scenario 6: cross-chain rejoin via flat pipeline.
+  # This chain is listed before 'main' in the listener's
+  # filter_chains, so its filters appear first in the
+  # flat pipeline. The branch rejoins at 'routing', which
+  # is a named filter in 'main'. This works because both
+  # chains share one name index after concatenation.
+  - name: preprocessing
+    filters:
+      - filter: headers
+        request_add:
+          - name: X-Preprocess
+            value: "true"
+        branch_chains:
+          - name: shortcut_to_routing
+            on_result:
+              filter: headers
+              key: status
+              result: fast_path
+            rejoin: routing
+            chains:
+              - name: fast_path_prep
+                filters:
+                  - filter: headers
+                    request_add:
+                      - name: X-Fast-Path
+                        value: "true"
+
+  - name: main
+    filters:
+      - filter: request_id
+
+      # Scenario 1: unconditional branch, rejoin: next.
+      # Always runs the utility chain, then continues.
+      - filter: headers
+        request_add:
+          - name: X-Pipeline
+            value: "main"
+        branch_chains:
+          - name: always_utility
+            rejoin: next
+            chains:
+              - utility
+
+      # Scenario 2: conditional branch, rejoin: terminal.
+      # When the headers filter reports status=tagged,
+      # the terminal branch stops the parent chain.
+      - filter: headers
+        name: tagger
+        request_add:
+          - name: X-Tag
+            value: "checked"
+        branch_chains:
+          - name: tagged_terminal
+            on_result:
+              filter: headers
+              result: tagged
+            rejoin: terminal
+            chains:
+              - name: terminal_response
+                filters:
+                  - filter: static_response
+                    status: 200
+
+      # Scenario 3: conditional branch, rejoin to named filter.
+      # Skips cors and forwarded_headers, resuming at routing.
+      - filter: headers
+        request_add:
+          - name: X-Pre
+            value: "done"
+        branch_chains:
+          - name: skip_to_routing
+            on_result:
+              filter: headers
+              key: status
+              result: api
+            rejoin: routing
+            chains:
+              - name: api_prep
+                filters:
+                  - filter: headers
+                    request_add:
+                      - name: X-Api
+                        value: "true"
+
+      - filter: cors
+        allow_origins:
+          - "*"
+
+      - filter: forwarded_headers
+
+      # Scenario 4: re-entrance with max_iterations.
+      # Loops back to classify up to 2 times.
+      - filter: headers
+        name: classify
+        request_add:
+          - name: X-Classify
+            value: "run"
+        branch_chains:
+          - name: reclassify
+            on_result:
+              filter: headers
+              key: action
+              result: retry
+            rejoin: classify
+            max_iterations: 2
+            chains:
+              - name: retry_prep
+                filters:
+                  - filter: headers
+                    request_add:
+                      - name: X-Retry
+                        value: "true"
+
+      - filter: router
+        name: routing
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+
+      - filter: load_balancer
+        name: lb
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"

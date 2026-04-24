@@ -1,0 +1,58 @@
+# Conditional Terminal Branch (on_result + rejoin: terminal)
+#
+# Short-circuits the pipeline when guardrails detects a
+# dangerous request header. The guardrails filter writes
+# status=blocked to FilterResultSet, the branch fires,
+# and a static 403 is returned. The parent chain stops;
+# no routing or load balancing runs.
+#
+# Use case: blocking requests with suspicious headers
+# before they reach the backend.
+
+listeners:
+  - name: web
+    address: "127.0.0.1:8080"
+    filter_chains: [main]
+
+filter_chains:
+  - name: main
+    filters:
+      # Stamp each request for tracing
+      - filter: request_id
+
+      # Guardrails: inspect request headers and write
+      # results for branch evaluation. action: flag
+      # writes status=blocked but returns Continue so
+      # the branch can decide the response.
+      - filter: guardrails
+        action: flag
+        rules:
+          - target: header
+            name: "X-Danger"
+            contains: "true"
+        branch_chains:
+          # Block requests that guardrails flags
+          - name: block_banned
+            on_result:
+              filter: guardrails
+              result: blocked
+            # Terminal: stops the parent pipeline entirely
+            rejoin: terminal
+            chains:
+              - name: blocked_response
+                filters:
+                  - filter: static_response
+                    status: 403
+
+      # Normal flow: route and load-balance
+      - filter: router
+        name: routing
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"

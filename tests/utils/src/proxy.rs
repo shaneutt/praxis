@@ -27,10 +27,10 @@ use tokio::sync::Notify;
 /// [`FilterPipeline`]: praxis_filter::FilterPipeline
 /// [`FilterEntry`]: praxis_core::config::FilterEntry
 fn resolve_listener_pipeline(config: &Config, listener: &Listener, registry: &FilterRegistry) -> Arc<FilterPipeline> {
-    let chains: HashMap<&str, &Vec<_>> = config
+    let chains: HashMap<&str, &[_]> = config
         .filter_chains
         .iter()
-        .map(|c| (c.name.as_str(), &c.filters))
+        .map(|c| (c.name.as_str(), c.filters.as_slice()))
         .collect();
 
     let mut entries = Vec::new();
@@ -40,7 +40,7 @@ fn resolve_listener_pipeline(config: &Config, listener: &Listener, registry: &Fi
         }
     }
 
-    let mut pipeline = FilterPipeline::build(&mut entries, registry).unwrap();
+    let mut pipeline = FilterPipeline::build_with_chains(&mut entries, registry, &chains).unwrap();
     pipeline
         .apply_body_limits(
             config.body_limits.max_request_bytes,
@@ -52,11 +52,14 @@ fn resolve_listener_pipeline(config: &Config, listener: &Listener, registry: &Fi
 }
 
 /// Build the filter pipeline from the config using the
-/// builtin registry (uses first listener).
+/// builtin registry (uses first listener). Resolves branch
+/// chains via [`build_with_chains`].
 ///
 /// # Panics
 ///
 /// Panics if `config.listeners` is empty.
+///
+/// [`build_with_chains`]: FilterPipeline::build_with_chains
 pub fn build_pipeline(config: &Config) -> FilterPipeline {
     let registry = FilterRegistry::with_builtins();
     let listener = config

@@ -322,10 +322,12 @@ fn build_static_response_filter(entry: &RoutedEntry) -> FilterEntry {
     filter_config.insert("body".into(), entry.body.clone().into());
 
     FilterEntry {
+        branch_chains: None,
         filter_type: "static_response".to_owned(),
         conditions,
-        response_conditions: vec![],
         config: serde_yaml::Value::Mapping(filter_config),
+        name: None,
+        response_conditions: vec![],
     }
 }
 

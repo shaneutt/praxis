@@ -1,0 +1,55 @@
+# Unconditional Branch (rejoin: next)
+#
+# Always runs a utility chain before continuing the main
+# pipeline. Useful for injecting audit headers, logging
+# metadata, or applying transformations that must run on
+# every request regardless of filter results.
+
+listeners:
+  - name: web
+    address: "127.0.0.1:8080"
+    filter_chains: [main]
+
+filter_chains:
+  # Standalone audit chain: defined at top level for
+  # reuse across listeners or branches
+  - name: audit
+    filters:
+      - filter: headers
+        request_add:
+          - name: X-Audit
+            value: "applied"
+
+  - name: main
+    filters:
+      # Stamp each request for tracing
+      - filter: request_id
+
+      # Entry point: triggers the audit side-chain
+      - filter: headers
+        request_add:
+          - name: X-Pipeline
+            value: "main"
+        branch_chains:
+          # No on_result: fires on every request
+          - name: always_audit
+            # Rejoin at next filter; audit is a
+            # side-effect, not a routing decision
+            rejoin: next
+            chains:
+              # Reference by name: keeps the main
+              # chain focused on its own concerns
+              - audit
+
+      # Normal flow continues after audit
+      - filter: router
+        name: routing
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"

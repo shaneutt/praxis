@@ -1,0 +1,60 @@
+# Named Chain Reference
+#
+# A branch references a top-level chain by name instead
+# of defining filters inline. The guardrails chain is
+# defined once and reused by the branch, keeping config
+# DRY when the same processing is needed in multiple
+# places.
+#
+# Use case: reusable filter chains shared across branches
+# (e.g. a guardrails or validation chain used by both API
+# and inference paths).
+
+listeners:
+  - name: web
+    address: "127.0.0.1:8080"
+    filter_chains: [main]
+
+filter_chains:
+  # Standalone chain: defined at top level so multiple
+  # branches or listeners can reference it by name
+  - name: guardrails
+    filters:
+      - filter: headers
+        request_add:
+          - name: X-Guardrail
+            value: "applied"
+
+  - name: main
+    filters:
+      # Stamp each request for tracing
+      - filter: request_id
+
+      # Entry point: triggers guardrails branch
+      - filter: headers
+        request_add:
+          - name: X-Entry
+            value: "checked"
+        branch_chains:
+          # Always apply guardrails before routing
+          - name: apply_guardrails
+            # Rejoin at the next filter after this one
+            rejoin: next
+            chains:
+              # Reference by name instead of inline
+              # definition; avoids duplicating the chain
+              # if other branches also need guardrails
+              - guardrails
+
+      # Normal flow continues after guardrails
+      - filter: router
+        name: routing
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"
