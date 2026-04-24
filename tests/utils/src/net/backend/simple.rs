@@ -10,8 +10,8 @@ use std::{
 };
 
 use praxis_core::config::{
-    AdminConfig, BodyLimitsConfig, Cluster, Config, Endpoint, FilterChainConfig, FilterEntry, InsecureOptions,
-    Listener, ProtocolKind, RuntimeConfig,
+    AdminConfig, BodyLimitsConfig, Cluster, Config, Endpoint, FailureMode, FilterChainConfig, FilterEntry,
+    InsecureOptions, Listener, ProtocolKind, RuntimeConfig,
 };
 
 use super::specialized::{BackendGuard, read_until_headers_complete, spawn_tcp_server, spawn_tcp_server_with_shutdown};
@@ -325,6 +325,7 @@ fn build_static_response_filter(entry: &RoutedEntry) -> FilterEntry {
         filter_type: "static_response".to_owned(),
         conditions,
         response_conditions: vec![],
+        failure_mode: FailureMode::default(),
         config: serde_yaml::Value::Mapping(filter_config),
     }
 }

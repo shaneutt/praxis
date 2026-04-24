@@ -38,6 +38,7 @@ impl FilterPipeline {
                 filter,
                 mem::take(&mut entry.conditions),
                 mem::take(&mut entry.response_conditions),
+                entry.failure_mode,
             ));
         }
         let body_capabilities = compute_body_capabilities(&filters);
@@ -56,7 +57,7 @@ impl FilterPipeline {
     /// cluster mismatches).
     ///
     /// ```
-    /// use praxis_filter::{FilterEntry, FilterPipeline, FilterRegistry};
+    /// use praxis_filter::{FailureMode, FilterEntry, FilterPipeline, FilterRegistry};
     ///
     /// let registry = FilterRegistry::with_builtins();
     /// let mut entries = vec![FilterEntry {
@@ -64,6 +65,7 @@ impl FilterPipeline {
     ///     config: serde_yaml::from_str("clusters: []").unwrap(),
     ///     conditions: vec![],
     ///     response_conditions: vec![],
+    ///     failure_mode: FailureMode::default(),
     /// }];
     /// let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
     /// let errors = pipeline.ordering_errors(&entries);
@@ -96,7 +98,7 @@ impl FilterPipeline {
     /// Currently detects: all routers conditional with no fallback.
     ///
     /// ```
-    /// use praxis_filter::{FilterEntry, FilterPipeline, FilterRegistry};
+    /// use praxis_filter::{FailureMode, FilterEntry, FilterPipeline, FilterRegistry};
     ///
     /// let registry = FilterRegistry::with_builtins();
     /// let mut entries = vec![FilterEntry {
@@ -111,6 +113,7 @@ impl FilterPipeline {
     ///         },
     ///     )],
     ///     response_conditions: vec![],
+    ///     failure_mode: FailureMode::default(),
     /// }];
     /// let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
     /// let warnings = pipeline.ordering_warnings();

@@ -5,8 +5,8 @@
 
 use clap::Parser;
 use praxis_core::config::{
-    AdminConfig, BodyLimitsConfig, Config, FilterChainConfig, FilterEntry, InsecureOptions, Listener, ProtocolKind,
-    RuntimeConfig,
+    AdminConfig, BodyLimitsConfig, Config, FailureMode, FilterChainConfig, FilterEntry, InsecureOptions, Listener,
+    ProtocolKind, RuntimeConfig,
 };
 
 // -----------------------------------------------------------------------------
@@ -114,6 +114,7 @@ fn build_static_response_entry(args: &Args) -> FilterEntry {
         filter_type: "static_response".into(),
         conditions: vec![],
         response_conditions: vec![],
+        failure_mode: FailureMode::default(),
         config: serde_yaml::Value::Mapping(filter_config),
     }
 }

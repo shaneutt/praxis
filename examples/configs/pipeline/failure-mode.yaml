@@ -1,0 +1,45 @@
+# Per-Filter Failure Mode
+#
+# Each filter can specify `failure_mode` to control what happens when
+# the filter returns an error:
+#
+#   closed  (default) — abort the request and return 500
+#   open              — log the error and continue to the next filter
+#
+# Use `open` for best-effort / observability filters where availability
+# matters more than enforcement. Use `closed` (or omit the field) for
+# security-critical filters that must never be bypassed.
+#
+# Usage:
+#   cargo run -p praxis -- -c examples/configs/pipeline/failure-mode.yaml
+
+listeners:
+  - name: default
+    address: "127.0.0.1:8080"
+    filter_chains:
+      - main
+
+filter_chains:
+  - name: main
+    filters:
+      # Observability: best-effort — if logging fails, keep serving.
+      - filter: access_log
+        failure_mode: open
+
+      # Security: must not be bypassed — explicit closed.
+      - filter: ip_acl
+        failure_mode: closed
+        allow:
+          - "0.0.0.0/0"
+
+      # Routing: default failure_mode (closed).
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"

@@ -4,6 +4,7 @@
 //! Utility functions for HTTP pipeline execution.
 
 use bytes::Bytes;
+use praxis_core::config::FailureMode;
 use tracing::{debug, trace, warn};
 
 use crate::{
@@ -74,6 +75,36 @@ pub(super) fn as_response_body_filter<'a>(
     Some(http_filter)
 }
 
+/// Check failure mode and either swallow or propagate a filter error.
+///
+/// When `failure_mode` is [`FailureMode::Open`], the error is logged as a
+/// warning and `Ok(())` is returned so the caller can continue.
+pub(super) fn check_failure_mode(
+    filter_name: &str,
+    error: FilterError,
+    phase: &str,
+    failure_mode: FailureMode,
+) -> Result<(), FilterError> {
+    match failure_mode {
+        FailureMode::Open => {
+            warn!(
+                filter = filter_name,
+                error = %error,
+                "filter error during {phase}, continuing (failure_mode=open)"
+            );
+            Ok(())
+        }
+        FailureMode::Closed => {
+            warn!(
+                filter = filter_name,
+                error = %error,
+                "filter error during {phase}, aborting"
+            );
+            Err(error)
+        }
+    }
+}
+
 // -----------------------------------------------------------------------------
 // Filter Dispatch Utilities
 // -----------------------------------------------------------------------------
@@ -92,10 +123,14 @@ pub(super) enum BodyFilterOutcome {
 }
 
 /// Classify a body filter result into a [`BodyFilterOutcome`], logging on reject/error.
+///
+/// When `failure_mode` is [`FailureMode::Open`], errors are logged as
+/// warnings and the filter is treated as if it returned `Continue`.
 pub(super) fn dispatch_body_result(
     result: Result<FilterAction, FilterError>,
     filter_name: &str,
     phase: &str,
+    failure_mode: FailureMode,
 ) -> Result<BodyFilterOutcome, FilterError> {
     match result {
         Ok(FilterAction::Continue) => Ok(BodyFilterOutcome::Continue),
@@ -112,8 +147,8 @@ pub(super) fn dispatch_body_result(
             Ok(BodyFilterOutcome::Rejected(rejection))
         },
         Err(e) => {
-            warn!(filter = filter_name, error = %e, "filter error during {phase}");
-            Err(e)
+            check_failure_mode(filter_name, e, phase, failure_mode)?;
+            Ok(BodyFilterOutcome::Continue)
         },
     }
 }
@@ -136,9 +171,13 @@ pub(super) fn skip_by_response_conditions(
 }
 
 /// Run a single response filter and track header modification.
+///
+/// When `failure_mode` is [`FailureMode::Open`], errors are logged as
+/// warnings and the filter is treated as if it returned `Continue`.
 pub(super) async fn run_response_filter(
     http_filter: &dyn crate::filter::HttpFilter,
     ctx: &mut HttpFilterContext<'_>,
+    failure_mode: FailureMode,
 ) -> Result<Option<Rejection>, FilterError> {
     let pre_len = ctx.response_header.as_ref().map_or(0, |r| r.headers.len());
     match http_filter.on_response(ctx).await {
@@ -160,8 +199,8 @@ pub(super) async fn run_response_filter(
             Ok(Some(rejection))
         },
         Err(e) => {
-            warn!(filter = http_filter.name(), error = %e, "filter error during response");
-            Err(e)
+            check_failure_mode(http_filter.name(), e, "response", failure_mode)?;
+            Ok(None)
         },
     }
 }

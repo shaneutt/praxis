@@ -112,6 +112,7 @@ fn filter_entry(filter_type: &str, yaml: &str) -> FilterEntry {
         config: serde_yaml::from_str(yaml).unwrap(),
         conditions: vec![],
         response_conditions: vec![],
+        failure_mode: Default::default(),
     }
 }
 

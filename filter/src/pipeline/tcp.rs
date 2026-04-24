@@ -17,7 +17,7 @@ impl FilterPipeline {
     ///
     /// Returns [`FilterError`] if any filter rejects or fails.
     pub async fn execute_tcp_connect(&self, ctx: &mut TcpFilterContext<'_>) -> Result<FilterAction, FilterError> {
-        for (filter, _conditions, _resp_conditions) in &self.filters {
+        for (filter, _conditions, _resp_conditions, _failure_mode) in &self.filters {
             let tcp_filter = match filter {
                 AnyFilter::Tcp(f) => f.as_ref(),
                 AnyFilter::Http(_) => continue,
@@ -38,7 +38,7 @@ impl FilterPipeline {
     ///
     /// Returns [`FilterError`] if any filter fails.
     pub async fn execute_tcp_disconnect(&self, ctx: &mut TcpFilterContext<'_>) -> Result<(), FilterError> {
-        for (filter, _conditions, _resp_conditions) in self.filters.iter().rev() {
+        for (filter, _conditions, _resp_conditions, _failure_mode) in self.filters.iter().rev() {
             let tcp_filter = match filter {
                 AnyFilter::Tcp(f) => f.as_ref(),
                 AnyFilter::Http(_) => continue,
@@ -203,6 +203,7 @@ mod tests {
             config: serde_yaml::from_str("routes: []").unwrap(),
             conditions: vec![],
             response_conditions: vec![],
+            failure_mode: Default::default(),
         }];
         let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
         let mut ctx = make_ctx();
@@ -299,7 +300,7 @@ mod tests {
     fn make_tcp_pipeline(filters: Vec<Box<dyn TcpFilter>>) -> FilterPipeline {
         let filters: Vec<_> = filters
             .into_iter()
-            .map(|f| (AnyFilter::Tcp(f), vec![], vec![]))
+            .map(|f| (AnyFilter::Tcp(f), vec![], vec![], Default::default()))
             .collect();
         FilterPipeline {
             body_capabilities: BodyCapabilities::default(),
