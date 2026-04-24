@@ -236,11 +236,6 @@ fn handle_v6_connection(mut stream: TcpStream, body: &str) {
     let _sent = stream.write_all(response.as_bytes());
 }
 
-/// Start a mock HTTP backend returning a fixed body.
-pub fn start_backend(body: &str) -> u16 {
-    Backend::fixed(body).start()
-}
-
 /// Start a mock HTTP backend returning a fixed body,
 /// with a [`BackendGuard`] that shuts down the listener
 /// thread when dropped.

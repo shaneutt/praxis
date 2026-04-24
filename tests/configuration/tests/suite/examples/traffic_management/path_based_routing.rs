@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use praxis_test_utils::{free_port, http_get_retry, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get_retry, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -13,19 +13,19 @@ use praxis_test_utils::{free_port, http_get_retry, start_backend, start_proxy};
 
 #[test]
 fn path_based_routing() {
-    let api_port = start_backend("api");
-    let static_port = start_backend("static");
-    let default_port = start_backend("default");
+    let api_backend = start_backend_with_shutdown("api");
+    let static_backend = start_backend_with_shutdown("static");
+    let default_backend = start_backend_with_shutdown("default");
     let proxy_port = free_port();
     let config = crate::example_utils::load_example_config(
         "traffic-management/path-based-routing.yaml",
         proxy_port,
         HashMap::from([
-            ("127.0.0.1:3001", api_port),
-            ("127.0.0.1:3002", api_port),
-            ("127.0.0.1:3003", api_port),
-            ("127.0.0.1:4000", static_port),
-            ("127.0.0.1:5000", default_port),
+            ("127.0.0.1:3001", api_backend.port()),
+            ("127.0.0.1:3002", api_backend.port()),
+            ("127.0.0.1:3003", api_backend.port()),
+            ("127.0.0.1:4000", static_backend.port()),
+            ("127.0.0.1:5000", default_backend.port()),
         ]),
     );
     let proxy = start_proxy(&config);

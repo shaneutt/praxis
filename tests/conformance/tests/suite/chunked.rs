@@ -5,8 +5,8 @@
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    free_port, http_get, http_send, parse_body, parse_status, simple_proxy_yaml, start_backend, start_echo_backend,
-    start_proxy,
+    free_port, http_get, http_send, parse_body, parse_status, simple_proxy_yaml, start_backend_with_shutdown,
+    start_echo_backend, start_proxy,
 };
 
 // -----------------------------------------------------------------------------
@@ -40,7 +40,8 @@ fn single_chunk_body_proxied() {
 
 #[test]
 fn multiple_chunks_proxied() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -105,7 +106,8 @@ fn empty_chunked_body_returns_200() {
 
 #[test]
 fn chunked_body_with_trailers_does_not_crash() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -135,7 +137,8 @@ fn chunked_body_with_trailers_does_not_crash() {
 
 #[test]
 fn recovery_after_chunked_request() {
-    let backend_port = start_backend("alive");
+    let _backend = start_backend_with_shutdown("alive");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();

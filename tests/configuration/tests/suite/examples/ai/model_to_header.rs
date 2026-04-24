@@ -4,7 +4,7 @@
 //! Model to header filter example tests.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_post, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_post, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,10 +12,10 @@ use praxis_test_utils::{free_port, http_post, start_backend, start_proxy};
 
 #[test]
 fn model_to_header_routes_by_model_field() {
-    let port_a = start_backend("model-a-response");
-    let port_default = start_backend("default-response");
+    let backend_a = start_backend_with_shutdown("model-a-response");
+    let backend_default = start_backend_with_shutdown("default-response");
     let proxy_port = free_port();
-    let yaml = make_yaml(proxy_port, "mistral-large-latest", port_a, port_default);
+    let yaml = make_yaml(proxy_port, "mistral-large-latest", backend_a.port(), backend_default.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
     let (status, body) = http_post(
@@ -32,10 +32,10 @@ fn model_to_header_routes_by_model_field() {
 
 #[test]
 fn model_to_header_falls_through_on_unknown_model() {
-    let port_a = start_backend("model-a-response");
-    let port_default = start_backend("default-response");
+    let backend_a = start_backend_with_shutdown("model-a-response");
+    let backend_default = start_backend_with_shutdown("default-response");
     let proxy_port = free_port();
-    let yaml = make_yaml(proxy_port, "mistral-large-latest", port_a, port_default);
+    let yaml = make_yaml(proxy_port, "mistral-large-latest", backend_a.port(), backend_default.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
     let (status, body) = http_post(proxy.addr(), "/v1/chat", r#"{"model":"unknown","messages":[]}"#);
@@ -45,10 +45,10 @@ fn model_to_header_falls_through_on_unknown_model() {
 
 #[test]
 fn model_to_header_continues_without_model_field() {
-    let port_a = start_backend("model-a-response");
-    let port_default = start_backend("default-response");
+    let backend_a = start_backend_with_shutdown("model-a-response");
+    let backend_default = start_backend_with_shutdown("default-response");
     let proxy_port = free_port();
-    let yaml = make_yaml(proxy_port, "mistral-large-latest", port_a, port_default);
+    let yaml = make_yaml(proxy_port, "mistral-large-latest", backend_a.port(), backend_default.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
     let (status, body) = http_post(proxy.addr(), "/v1/chat", r#"{"messages":[]}"#);

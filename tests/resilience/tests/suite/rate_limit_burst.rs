@@ -4,7 +4,7 @@
 //! Tests for rate limiter behavior under burst conditions.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, http_send, parse_header, parse_status, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get, http_send, parse_header, parse_status, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,7 +12,8 @@ use praxis_test_utils::{free_port, http_get, http_send, parse_header, parse_stat
 
 #[test]
 fn burst_exhaustion_then_rejection() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let usable = 4u32;
     let burst = usable + 2;
@@ -46,7 +47,8 @@ fn burst_exhaustion_then_rejection() {
 
 #[test]
 fn rejection_includes_retry_after_header() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 1.0, 2);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -73,7 +75,8 @@ fn rejection_includes_retry_after_header() {
 
 #[test]
 fn rate_limit_headers_present_on_success() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 100.0, 200);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -101,7 +104,8 @@ fn rate_limit_headers_present_on_success() {
 
 #[test]
 fn rate_limit_remaining_decreases() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 0.1, 10);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -133,7 +137,8 @@ fn rate_limit_remaining_decreases() {
 
 #[test]
 fn rate_limit_headers_present_on_rejection() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 0.1, 2);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -165,7 +170,8 @@ fn rate_limit_headers_present_on_rejection() {
 
 #[test]
 fn per_ip_burst_exhaustion() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = rate_limit_yaml(proxy_port, backend_port, "per_ip", 0.1, 5);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -189,7 +195,8 @@ fn per_ip_burst_exhaustion() {
 
 #[test]
 fn rapid_burst_uses_all_tokens() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let burst: u32 = 8;
     let yaml = rate_limit_yaml(proxy_port, backend_port, "global", 0.1, burst);

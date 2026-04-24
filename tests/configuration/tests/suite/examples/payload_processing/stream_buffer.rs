@@ -11,7 +11,8 @@ use praxis_filter::{
     BodyAccess, BodyMode, FilterAction, FilterError, FilterFactory, FilterRegistry, HttpFilter, HttpFilterContext,
 };
 use praxis_test_utils::{
-    ProxyGuard, free_port, http_post, http_send, parse_status, start_backend, start_proxy_with_registry,
+    BackendGuard, ProxyGuard, free_port, http_post, http_send, parse_status, start_backend_with_shutdown,
+    start_proxy_with_registry,
 };
 
 // -----------------------------------------------------------------------------
@@ -20,7 +21,7 @@ use praxis_test_utils::{
 
 #[test]
 fn stream_buffer_within_limit_succeeds() {
-    let proxy = setup(256);
+    let (_backend, proxy) = setup(256);
     let body = "a".repeat(100);
     let (status, _) = http_post(proxy.addr(), "/", &body);
     assert_eq!(status, 200, "body within limit should be accepted");
@@ -28,7 +29,7 @@ fn stream_buffer_within_limit_succeeds() {
 
 #[test]
 fn stream_buffer_at_exact_limit_succeeds() {
-    let proxy = setup(64);
+    let (_backend, proxy) = setup(64);
     let body = "b".repeat(64);
     let (status, _) = http_post(proxy.addr(), "/", &body);
     assert_eq!(status, 200, "body at exact limit should be accepted");
@@ -36,7 +37,7 @@ fn stream_buffer_at_exact_limit_succeeds() {
 
 #[test]
 fn stream_buffer_exceeding_limit_returns_413() {
-    let proxy = setup(64);
+    let (_backend, proxy) = setup(64);
     let body = "c".repeat(128);
     let (status, _) = http_post(proxy.addr(), "/", &body);
     assert_eq!(status, 413, "body exceeding limit should be rejected with 413");
@@ -44,7 +45,7 @@ fn stream_buffer_exceeding_limit_returns_413() {
 
 #[test]
 fn stream_buffer_one_byte_over_returns_413() {
-    let proxy = setup(64);
+    let (_backend, proxy) = setup(64);
     let body = "d".repeat(65);
     let (status, _) = http_post(proxy.addr(), "/", &body);
     assert_eq!(status, 413, "body one byte over limit should be rejected with 413");
@@ -52,7 +53,7 @@ fn stream_buffer_one_byte_over_returns_413() {
 
 #[test]
 fn stream_buffer_empty_body_succeeds() {
-    let proxy = setup(64);
+    let (_backend, proxy) = setup(64);
     let raw = http_send(
         proxy.addr(),
         "POST / HTTP/1.1\r\n\
@@ -66,6 +67,44 @@ fn stream_buffer_empty_body_succeeds() {
 // -----------------------------------------------------------------------------
 // Test Utilities
 // -----------------------------------------------------------------------------
+
+/// Start a proxy with a tiny stream buffer filter and return the backend and proxy guards.
+fn setup(max_bytes: usize) -> (BackendGuard, ProxyGuard) {
+    let backend = start_backend_with_shutdown("ok");
+    let backend_port = backend.port();
+    let proxy_port = free_port();
+    let yaml = format!(
+        r#"
+listeners:
+  - name: default
+    address: "127.0.0.1:{proxy_port}"
+    filter_chains: [main]
+filter_chains:
+  - name: main
+    filters:
+      - filter: tiny_stream_buffer
+        max_bytes: {max_bytes}
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:{backend_port}"
+"#
+    );
+    let config = Config::from_yaml(&yaml).unwrap();
+    let mut registry = FilterRegistry::with_builtins();
+    registry
+        .register(
+            "tiny_stream_buffer",
+            FilterFactory::Http(Arc::new(TinyStreamBufferFilter::from_config)),
+        )
+        .expect("duplicate filter name");
+    (backend, start_proxy_with_registry(&config, &registry))
+}
 
 /// Declares StreamBuffer with a small max_bytes for testing 413 enforcement.
 struct TinyStreamBufferFilter {
@@ -115,39 +154,3 @@ impl HttpFilter for TinyStreamBufferFilter {
     }
 }
 
-/// Start a proxy with a tiny stream buffer filter and return the proxy guard.
-fn setup(max_bytes: usize) -> ProxyGuard {
-    let backend_port = start_backend("ok");
-    let proxy_port = free_port();
-    let yaml = format!(
-        r#"
-listeners:
-  - name: default
-    address: "127.0.0.1:{proxy_port}"
-    filter_chains: [main]
-filter_chains:
-  - name: main
-    filters:
-      - filter: tiny_stream_buffer
-        max_bytes: {max_bytes}
-      - filter: router
-        routes:
-          - path_prefix: "/"
-            cluster: backend
-      - filter: load_balancer
-        clusters:
-          - name: backend
-            endpoints:
-              - "127.0.0.1:{backend_port}"
-"#
-    );
-    let config = Config::from_yaml(&yaml).unwrap();
-    let mut registry = FilterRegistry::with_builtins();
-    registry
-        .register(
-            "tiny_stream_buffer",
-            FilterFactory::Http(Arc::new(TinyStreamBufferFilter::from_config)),
-        )
-        .expect("duplicate filter name");
-    start_proxy_with_registry(&config, &registry)
-}

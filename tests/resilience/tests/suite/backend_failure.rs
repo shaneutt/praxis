@@ -11,7 +11,7 @@ use std::{
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    free_port, http_get, http_post, http_send, parse_status, simple_proxy_yaml, start_backend, start_proxy,
+    free_port, http_get, http_post, http_send, parse_status, simple_proxy_yaml, start_backend_with_shutdown, start_proxy,
     start_slow_backend,
 };
 
@@ -103,7 +103,8 @@ fn slow_backend_with_timeout_filter_returns_504() {
 
 #[test]
 fn fast_backend_with_timeout_filter_succeeds() {
-    let backend_port = start_backend("fast");
+    let _backend = start_backend_with_shutdown("fast");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = timeout_filter_yaml(proxy_port, backend_port, 5000);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -134,7 +135,8 @@ fn repeated_requests_to_dead_backend_all_return_502() {
 #[test]
 fn proxy_remains_healthy_after_backend_failures() {
     let dead_port = free_port();
-    let live_port = start_backend("alive");
+    let _live_backend = start_backend_with_shutdown("alive");
+    let live_port = _live_backend.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -241,7 +243,8 @@ fn client_disconnect_during_slow_response_does_not_crash_proxy() {
 
     std::thread::sleep(Duration::from_millis(200));
 
-    let live_port = start_backend("still-alive");
+    let _live_backend = start_backend_with_shutdown("still-alive");
+    let live_port = _live_backend.port();
     let proxy_port2 = free_port();
     let yaml2 = simple_proxy_yaml(proxy_port2, live_port);
     let config2 = Config::from_yaml(&yaml2).unwrap();

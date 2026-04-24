@@ -9,8 +9,9 @@ use std::time::Duration;
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    free_port, http_get, http_send, parse_body, parse_header, parse_status, simple_proxy_yaml, start_backend,
-    start_header_echo_backend, start_header_echo_backend_with_shutdown, start_slow_backend, wait_for_http2,
+    free_port, http_get, http_send, parse_body, parse_header, parse_status, simple_proxy_yaml,
+    start_backend_with_shutdown, start_header_echo_backend, start_header_echo_backend_with_shutdown,
+    start_slow_backend, wait_for_http2,
 };
 
 use super::test_utils::{
@@ -29,7 +30,8 @@ use super::test_utils::{
 /// [RFC 9110 Section 7.2]: https://datatracker.ietf.org/doc/html/rfc9110#section-7.2
 #[test]
 fn rfc9110_multiple_host_headers_rejected() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -58,7 +60,8 @@ fn rfc9110_multiple_host_headers_rejected() {
 /// [RFC 9110 Section 7.2]: https://datatracker.ietf.org/doc/html/rfc9110#section-7.2
 #[test]
 fn rfc9110_host_mismatch_with_absolute_uri() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -89,7 +92,8 @@ fn rfc9110_host_mismatch_with_absolute_uri() {
 /// [RFC 9110 Section 9.3.8]: https://datatracker.ietf.org/doc/html/rfc9110#section-9.3.8
 #[test]
 fn rfc9110_trace_request_handled() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -119,7 +123,8 @@ fn rfc9110_trace_request_handled() {
 /// [RFC 9110 Section 8.6]: https://datatracker.ietf.org/doc/html/rfc9110#section-8.6
 #[test]
 fn rfc9110_duplicate_cl_different_values_rejected() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -150,7 +155,8 @@ fn rfc9110_duplicate_cl_different_values_rejected() {
 /// [RFC 9110 Section 8.6]: https://datatracker.ietf.org/doc/html/rfc9110#section-8.6
 #[test]
 fn rfc9110_duplicate_cl_same_value_rejected() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -266,7 +272,8 @@ fn rfc9110_upstream_timeout_returns_504() {
 /// [RFC 9110 Section 15.6.5]: https://datatracker.ietf.org/doc/html/rfc9110#section-15.6.5
 #[test]
 fn rfc9110_upstream_within_timeout_succeeds() {
-    let backend_port = start_backend("fast-response");
+    let _backend = start_backend_with_shutdown("fast-response");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = timeout_filter_yaml(proxy_port, backend_port, 5000);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -774,7 +781,8 @@ fn rfc9110_via_header_added_to_request() {
 /// [RFC 9110 Section 7.6.3]: https://datatracker.ietf.org/doc/html/rfc9110#section-7.6.3
 #[test]
 fn rfc9110_via_header_added_to_response() {
-    let backend_port = start_backend("via-test");
+    let _backend = start_backend_with_shutdown("via-test");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -832,7 +840,8 @@ fn rfc9110_via_header_appended_not_replaced() {
 /// [RFC 9110 Section 7.6.3]: https://datatracker.ietf.org/doc/html/rfc9110#section-7.6.3
 #[test]
 fn rfc9110_via_header_h2_client_gets_2_0() {
-    let backend_port = start_backend("via-h2-test");
+    let _backend = start_backend_with_shutdown("via-h2-test");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -888,7 +897,8 @@ fn rfc9110_max_forwards_decremented_on_options() {
 /// [RFC 9110 Section 7.6.2]: https://datatracker.ietf.org/doc/html/rfc9110#section-7.6.2
 #[test]
 fn rfc9110_max_forwards_zero_trace_returns_200() {
-    let backend_port = start_backend("should-not-reach");
+    let _backend = start_backend_with_shutdown("should-not-reach");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -921,7 +931,8 @@ fn rfc9110_max_forwards_zero_trace_returns_200() {
 /// [RFC 9110 Section 7.6.2]: https://datatracker.ietf.org/doc/html/rfc9110#section-7.6.2
 #[test]
 fn rfc9110_no_max_forwards_forwarded_normally() {
-    let backend_port = start_backend("normal-forward");
+    let _backend = start_backend_with_shutdown("normal-forward");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -987,7 +998,8 @@ fn rfc9110_te_header_stripped_from_upstream_request() {
 /// [RFC 9110 Section 15.2]: https://datatracker.ietf.org/doc/html/rfc9110#section-15.2
 #[test]
 fn rfc9110_100_continue_allows_body_upload() {
-    let backend_port = start_backend("upload-ok");
+    let _backend = start_backend_with_shutdown("upload-ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -1031,7 +1043,8 @@ fn rfc9110_100_continue_allows_body_upload() {
 /// [RFC 9110 Section 7.6.2]: https://datatracker.ietf.org/doc/html/rfc9110#section-7.6.2
 #[test]
 fn rfc9110_max_forwards_ignored_on_get() {
-    let backend_port = start_backend("max-fwd-get");
+    let _backend = start_backend_with_shutdown("max-fwd-get");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();

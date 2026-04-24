@@ -6,7 +6,7 @@
 //! not affect traffic on another.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy, wait_for_http, wait_for_tcp};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy, wait_for_http, wait_for_tcp};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -14,7 +14,8 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_proxy, wait_fo
 
 #[test]
 fn dead_backend_on_one_listener_does_not_affect_other() {
-    let live_port = start_backend("listener-b-ok");
+    let _live_backend = start_backend_with_shutdown("listener-b-ok");
+    let live_port = _live_backend.port();
     let dead_port = free_port();
     let port_a = free_port();
     let port_b = free_port();
@@ -71,7 +72,8 @@ filter_chains:
 
 #[test]
 fn independent_pipelines_per_listener() {
-    let backend_port = start_backend("shared-backend");
+    let _backend = start_backend_with_shutdown("shared-backend");
+    let backend_port = _backend.port();
     let port_a = free_port();
     let port_b = free_port();
 
@@ -144,9 +146,12 @@ filter_chains:
 
 #[test]
 fn three_listeners_independent_routing() {
-    let api_port = start_backend("api-data");
-    let web_port = start_backend("web-page");
-    let internal_port = start_backend("internal-service");
+    let _api_backend = start_backend_with_shutdown("api-data");
+    let api_port = _api_backend.port();
+    let _web_backend = start_backend_with_shutdown("web-page");
+    let web_port = _web_backend.port();
+    let _internal_backend = start_backend_with_shutdown("internal-service");
+    let internal_port = _internal_backend.port();
     let listen_a = free_port();
     let listen_b = free_port();
     let listen_c = free_port();
@@ -223,7 +228,8 @@ filter_chains:
 
 #[test]
 fn listener_with_dead_backend_does_not_stall_other_listeners() {
-    let live_port = start_backend("fast-response");
+    let _live_backend = start_backend_with_shutdown("fast-response");
+    let live_port = _live_backend.port();
     let dead_port = free_port();
     let port_fast = free_port();
     let port_dead = free_port();

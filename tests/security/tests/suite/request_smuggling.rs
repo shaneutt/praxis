@@ -5,7 +5,7 @@
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    free_port, http_send, parse_body, parse_status, simple_proxy_yaml, start_backend, start_proxy,
+    free_port, http_send, parse_body, parse_status, simple_proxy_yaml, start_backend_with_shutdown, start_proxy,
 };
 
 // -----------------------------------------------------------------------------
@@ -14,9 +14,9 @@ use praxis_test_utils::{
 
 #[test]
 fn conflicting_host_headers_rejected() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -37,9 +37,9 @@ fn conflicting_host_headers_rejected() {
 
 #[test]
 fn duplicate_identical_host_headers_accepted() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -66,9 +66,9 @@ fn duplicate_identical_host_headers_accepted() {
 /// [RFC 9112 Section 3.2]: https://datatracker.ietf.org/doc/html/rfc9112#section-3.2
 #[test]
 fn missing_host_header_http11_rejected() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -87,9 +87,9 @@ fn missing_host_header_http11_rejected() {
 
 #[test]
 fn host_with_port_vs_without_port_considered_different() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -114,9 +114,9 @@ fn host_with_port_vs_without_port_considered_different() {
 
 #[test]
 fn cl_te_desync_does_not_poison_connection() {
-    let backend_port = start_backend("clean");
+    let backend = start_backend_with_shutdown("clean");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -176,9 +176,9 @@ fn cl_te_desync_does_not_poison_connection() {
 /// [RFC 9112]: https://datatracker.ietf.org/doc/html/rfc9112
 #[test]
 fn te_chunked_case_insensitive() {
-    let backend_port = start_backend("chunked-ok");
+    let backend = start_backend_with_shutdown("chunked-ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -204,9 +204,9 @@ fn te_chunked_case_insensitive() {
 
 #[test]
 fn te_with_whitespace_padding() {
-    let backend_port = start_backend("ws-ok");
+    let backend = start_backend_with_shutdown("ws-ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -236,9 +236,9 @@ fn te_with_whitespace_padding() {
 
 #[test]
 fn cl_with_leading_zeros() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -265,9 +265,9 @@ fn cl_with_leading_zeros() {
 /// [RFC 9110 Section 8.6]: https://datatracker.ietf.org/doc/html/rfc9110#section-8.6
 #[test]
 fn negative_content_length_rejected() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -289,9 +289,9 @@ fn negative_content_length_rejected() {
 
 #[test]
 fn content_length_overflow_rejected() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -317,9 +317,9 @@ fn content_length_overflow_rejected() {
 /// [RFC 9112]: https://datatracker.ietf.org/doc/html/rfc9112
 #[test]
 fn empty_transfer_encoding_rejected() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 

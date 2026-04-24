@@ -5,7 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use praxis_test_utils::{free_port, http_send, parse_body, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_send, parse_body, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -13,17 +13,17 @@ use praxis_test_utils::{free_port, http_send, parse_body, start_backend, start_p
 
 #[test]
 fn session_affinity() {
-    let port_a = start_backend("sa-a");
-    let port_b = start_backend("sa-b");
-    let port_c = start_backend("sa-c");
+    let backend_a = start_backend_with_shutdown("sa-a");
+    let backend_b = start_backend_with_shutdown("sa-b");
+    let backend_c = start_backend_with_shutdown("sa-c");
     let proxy_port = free_port();
     let config = crate::example_utils::load_example_config(
         "traffic-management/session-affinity.yaml",
         proxy_port,
         HashMap::from([
-            ("127.0.0.1:3001", port_a),
-            ("127.0.0.1:3002", port_b),
-            ("127.0.0.1:3003", port_c),
+            ("127.0.0.1:3001", backend_a.port()),
+            ("127.0.0.1:3002", backend_b.port()),
+            ("127.0.0.1:3003", backend_c.port()),
         ]),
     );
     let proxy = start_proxy(&config);

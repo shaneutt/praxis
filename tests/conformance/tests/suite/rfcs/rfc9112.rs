@@ -13,7 +13,7 @@ use std::{
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    free_port, http_get, http_send, parse_body, parse_status, simple_proxy_yaml, start_backend,
+    free_port, http_get, http_send, parse_body, parse_status, simple_proxy_yaml, start_backend_with_shutdown,
     start_header_echo_backend, start_proxy,
 };
 
@@ -31,7 +31,8 @@ use super::test_utils::{start_417_backend, start_crlf_response_backend, start_re
 /// [RFC 9112 Section 6.1]: https://datatracker.ietf.org/doc/html/rfc9112#section-6.1
 #[test]
 fn rfc9112_te_and_cl_conflict() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -66,7 +67,8 @@ fn rfc9112_te_and_cl_conflict() {
 /// [RFC 9112 Section 2.2]: https://datatracker.ietf.org/doc/html/rfc9112#section-2.2
 #[test]
 fn rfc9112_bare_cr_in_header_rejected() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -101,7 +103,8 @@ fn rfc9112_bare_cr_in_header_rejected() {
 /// [RFC 9112 Section 3.2.1]: https://datatracker.ietf.org/doc/html/rfc9112#section-3.2.1
 #[test]
 fn rfc9112_absolute_form_request_uri() {
-    let backend_port = start_backend("absolute");
+    let _backend = start_backend_with_shutdown("absolute");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -133,7 +136,8 @@ fn rfc9112_absolute_form_request_uri() {
 /// [RFC 9112 Section 9.6]: https://datatracker.ietf.org/doc/html/rfc9112#section-9.6
 #[test]
 fn rfc9112_connection_close_respected() {
-    let backend_port = start_backend("close-me");
+    let _backend = start_backend_with_shutdown("close-me");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -171,7 +175,8 @@ fn rfc9112_connection_close_respected() {
 /// [RFC 9112 Section 6.1]: https://datatracker.ietf.org/doc/html/rfc9112#section-6.1
 #[test]
 fn rfc9112_te_overrides_cl_chunked_body() {
-    let backend_port = start_backend("te-wins");
+    let _backend = start_backend_with_shutdown("te-wins");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -370,7 +375,8 @@ fn rfc9112_proxy_sends_http11_to_upstream() {
 /// [RFC 9112 Section 9.3]: https://datatracker.ietf.org/doc/html/rfc9112#section-9.3
 #[test]
 fn rfc9112_expect_100_continue_post_succeeds() {
-    let backend_port = start_backend("continue-ok");
+    let _backend = start_backend_with_shutdown("continue-ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -447,7 +453,8 @@ fn rfc9112_expect_100_continue_417_forwarded() {
 /// [RFC 9112 Section 5.2]: https://datatracker.ietf.org/doc/html/rfc9112#section-5.2
 #[test]
 fn rfc9112_obs_fold_sp_rejected() {
-    let backend_port = start_backend("should-not-reach");
+    let _backend = start_backend_with_shutdown("should-not-reach");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -475,7 +482,8 @@ fn rfc9112_obs_fold_sp_rejected() {
 /// [RFC 9112 Section 5.2]: https://datatracker.ietf.org/doc/html/rfc9112#section-5.2
 #[test]
 fn rfc9112_obs_fold_htab_rejected() {
-    let backend_port = start_backend("should-not-reach");
+    let _backend = start_backend_with_shutdown("should-not-reach");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -507,7 +515,8 @@ fn rfc9112_obs_fold_htab_rejected() {
 /// [RFC 9112 Section 5.4]: https://datatracker.ietf.org/doc/html/rfc9112#section-5.4
 #[test]
 fn rfc9112_http10_without_host_accepted() {
-    let backend_port = start_backend("http10-ok");
+    let _backend = start_backend_with_shutdown("http10-ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -540,7 +549,8 @@ fn rfc9112_http10_without_host_accepted() {
 /// [RFC 9112 Section 3.2]: https://datatracker.ietf.org/doc/html/rfc9112#section-3.2
 #[test]
 fn rfc9112_options_asterisk_form_handled() {
-    let backend_port = start_backend("asterisk");
+    let _backend = start_backend_with_shutdown("asterisk");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();

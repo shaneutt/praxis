@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    TestCertificates, free_port, https_get, start_backend, start_tls_proxy, start_tls_proxy_no_wait,
-    tls_connection_rejected, wait_for_https,
+    TestCertificates, free_port, https_get, start_backend_with_shutdown, start_tls_proxy,
+    start_tls_proxy_no_wait, tls_connection_rejected, wait_for_https,
 };
 
 // -----------------------------------------------------------------------------
@@ -31,7 +31,8 @@ fn rfc8446_tls_12_connection_accepted() {
     let certs = TestCertificates::generate();
     let client_config = build_tls12_client_config(&certs);
 
-    let backend_port = start_backend("tls12-ok");
+    let _backend = start_backend_with_shutdown("tls12-ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = tls_proxy_yaml(proxy_port, backend_port, &certs);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -52,7 +53,8 @@ fn rfc8446_tls_13_connection_accepted() {
     let certs = TestCertificates::generate();
     let client_config = build_tls13_client_config(&certs);
 
-    let backend_port = start_backend("tls13-ok");
+    let _backend = start_backend_with_shutdown("tls13-ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = tls_proxy_yaml(proxy_port, backend_port, &certs);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -71,7 +73,8 @@ fn rfc8446_tls_13_connection_accepted() {
 #[test]
 fn rfc8446_tls_10_connection_rejected() {
     let certs = TestCertificates::generate();
-    let backend_port = start_backend("should-not-reach");
+    let _backend = start_backend_with_shutdown("should-not-reach");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = tls_proxy_yaml(proxy_port, backend_port, &certs);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -87,7 +90,8 @@ fn rfc8446_tls_10_connection_rejected() {
 #[test]
 fn rfc8446_tls_11_connection_rejected() {
     let certs = TestCertificates::generate();
-    let backend_port = start_backend("should-not-reach");
+    let _backend = start_backend_with_shutdown("should-not-reach");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = tls_proxy_yaml(proxy_port, backend_port, &certs);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -105,7 +109,8 @@ fn rfc8446_tls_11_connection_rejected() {
 #[test]
 fn rfc8446_alpn_h2_accepted() {
     let certs = TestCertificates::generate();
-    let backend_port = start_backend("alpn-h2");
+    let _backend = start_backend_with_shutdown("alpn-h2");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = tls_proxy_yaml(proxy_port, backend_port, &certs);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -123,7 +128,8 @@ fn rfc8446_alpn_h2_accepted() {
 #[test]
 fn rfc8446_alpn_http11_tls_handshake_accepted() {
     let certs = TestCertificates::generate();
-    let backend_port = start_backend("alpn-h1");
+    let _backend = start_backend_with_shutdown("alpn-h1");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = tls_proxy_yaml(proxy_port, backend_port, &certs);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -149,7 +155,8 @@ fn rfc8446_invalid_client_cert_rejected_with_mtls() {
     let valid_client_cert = server_certs.generate_client_cert();
     let valid_client_config = server_certs.client_config_with_cert(&valid_client_cert);
 
-    let backend_port = start_backend("should-not-reach");
+    let _backend = start_backend_with_shutdown("should-not-reach");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = mtls_proxy_yaml(proxy_port, backend_port, &server_certs);
     let config = Config::from_yaml(&yaml).unwrap();

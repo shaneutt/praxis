@@ -9,7 +9,7 @@ use std::{
 };
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, simple_proxy_yaml, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get, simple_proxy_yaml, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -17,7 +17,8 @@ use praxis_test_utils::{free_port, http_get, simple_proxy_yaml, start_backend, s
 
 #[test]
 fn concurrent_requests_all_succeed() {
-    let backend_port = start_backend("concurrent-ok");
+    let _backend = start_backend_with_shutdown("concurrent-ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -78,7 +79,8 @@ fn concurrent_requests_to_dead_backend_all_return_502() {
 
 #[test]
 fn sequential_burst_all_succeed() {
-    let backend_port = start_backend("burst-ok");
+    let _backend = start_backend_with_shutdown("burst-ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -93,8 +95,10 @@ fn sequential_burst_all_succeed() {
 
 #[test]
 fn concurrent_requests_to_multiple_routes() {
-    let api_port = start_backend("api-response");
-    let web_port = start_backend("web-response");
+    let _api_backend = start_backend_with_shutdown("api-response");
+    let api_port = _api_backend.port();
+    let _web_backend = start_backend_with_shutdown("web-response");
+    let web_port = _web_backend.port();
     let proxy_port = free_port();
 
     let yaml = format!(
@@ -159,7 +163,8 @@ filter_chains:
 
 #[test]
 fn concurrent_requests_with_mixed_live_dead_backends() {
-    let live_port = start_backend("live");
+    let _live_backend = start_backend_with_shutdown("live");
+    let live_port = _live_backend.port();
     let dead_port = free_port();
     let proxy_port = free_port();
 

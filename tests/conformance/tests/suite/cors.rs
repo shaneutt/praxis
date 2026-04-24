@@ -15,7 +15,7 @@
 //! [Fetch Standard Section 3.2.5]: https://fetch.spec.whatwg.org/#main-fetch
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_send, parse_header, parse_status, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_send, parse_header, parse_status, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -29,7 +29,8 @@ use praxis_test_utils::{free_port, http_send, parse_header, parse_status, start_
 /// [Fetch Standard Section 3.2.3]: https://fetch.spec.whatwg.org/#cors-preflight-request
 #[test]
 fn fetch_3_2_3_preflight_success_includes_required_headers() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -65,7 +66,8 @@ fn fetch_3_2_3_preflight_success_includes_required_headers() {
 /// [Fetch Standard Section 3.2.3]: https://fetch.spec.whatwg.org/#cors-preflight-request
 #[test]
 fn fetch_3_2_3_preflight_disallowed_method_omits_acao() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -87,7 +89,8 @@ fn fetch_3_2_3_preflight_disallowed_method_omits_acao() {
 /// [Fetch Standard Section 3.2.4]: https://fetch.spec.whatwg.org/#cors-preflight-cache
 #[test]
 fn fetch_3_2_4_preflight_includes_max_age() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -111,7 +114,8 @@ fn fetch_3_2_4_preflight_includes_max_age() {
 /// [Fetch Standard Section 3.2.5]: https://fetch.spec.whatwg.org/#main-fetch
 #[test]
 fn fetch_3_2_5_simple_request_reflects_allowed_origin() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -136,7 +140,8 @@ fn fetch_3_2_5_simple_request_reflects_allowed_origin() {
 /// [Fetch Standard Section 3.2.5]: https://fetch.spec.whatwg.org/#main-fetch
 #[test]
 fn fetch_3_2_5_simple_request_omits_acao_for_disallowed_origin() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -160,7 +165,8 @@ fn fetch_3_2_5_simple_request_omits_acao_for_disallowed_origin() {
 /// [Fetch Standard Section 3.2.5]: https://fetch.spec.whatwg.org/#main-fetch
 #[test]
 fn fetch_3_2_5_vary_origin_on_non_cors_responses() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -186,7 +192,8 @@ fn fetch_3_2_5_vary_origin_on_non_cors_responses() {
 /// [Fetch Standard Section 3.2.5]: https://fetch.spec.whatwg.org/#main-fetch
 #[test]
 fn fetch_3_2_5_credentials_on_simple_request() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = cors_credentials_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -217,7 +224,8 @@ fn fetch_3_2_5_credentials_on_simple_request() {
 /// [Fetch Standard Section 3.2.5]: https://fetch.spec.whatwg.org/#main-fetch
 #[test]
 fn fetch_3_2_5_expose_headers_on_actual_request() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = cors_expose_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -245,7 +253,8 @@ fn fetch_3_2_5_expose_headers_on_actual_request() {
 /// [Fetch Standard Section 3.2.5]: https://fetch.spec.whatwg.org/#main-fetch
 #[test]
 fn fetch_3_2_5_wildcard_origin_returns_star() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = cors_wildcard_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -271,7 +280,8 @@ fn fetch_3_2_5_wildcard_origin_returns_star() {
 /// [Fetch Standard Section 3.2.3]: https://fetch.spec.whatwg.org/#cors-preflight-request
 #[test]
 fn fetch_3_2_3_private_network_access_preflight() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = cors_pna_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -300,7 +310,8 @@ fn fetch_3_2_3_private_network_access_preflight() {
 /// [Fetch Standard Section 3.2.3]: https://fetch.spec.whatwg.org/#cors-preflight-request
 #[test]
 fn fetch_3_2_3_reject_mode_disallowed_origin_returns_403() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = cors_reject_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -328,7 +339,8 @@ fn fetch_3_2_3_reject_mode_disallowed_origin_returns_403() {
 /// [Fetch Standard Section 3.2.3]: https://fetch.spec.whatwg.org/#cors-preflight-request
 #[test]
 fn cors_successful_preflight_includes_vary_headers() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = cors_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();

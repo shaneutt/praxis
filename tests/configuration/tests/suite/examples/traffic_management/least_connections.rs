@@ -5,7 +5,7 @@
 
 use std::{collections::HashMap, thread, time::Duration};
 
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy, start_slow_backend};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy, start_slow_backend};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -13,17 +13,17 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_proxy, start_s
 
 #[test]
 fn least_connections() {
-    let port_a = start_backend("lc-a");
-    let port_b = start_backend("lc-b");
-    let port_c = start_backend("lc-c");
+    let backend_a = start_backend_with_shutdown("lc-a");
+    let backend_b = start_backend_with_shutdown("lc-b");
+    let backend_c = start_backend_with_shutdown("lc-c");
     let proxy_port = free_port();
     let config = crate::example_utils::load_example_config(
         "traffic-management/least-connections.yaml",
         proxy_port,
         HashMap::from([
-            ("127.0.0.1:3001", port_a),
-            ("127.0.0.1:3002", port_b),
-            ("127.0.0.1:3003", port_c),
+            ("127.0.0.1:3001", backend_a.port()),
+            ("127.0.0.1:3002", backend_b.port()),
+            ("127.0.0.1:3003", backend_c.port()),
         ]),
     );
     let proxy = start_proxy(&config);

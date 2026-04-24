@@ -10,7 +10,7 @@ use std::{
 };
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, simple_proxy_yaml, start_backend, start_proxy, wait_for_tcp};
+use praxis_test_utils::{free_port, http_get, simple_proxy_yaml, start_backend_with_shutdown, start_proxy, wait_for_tcp};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -18,9 +18,9 @@ use praxis_test_utils::{free_port, http_get, simple_proxy_yaml, start_backend, s
 
 #[test]
 fn server_starts_and_serves_request() {
-    let backend_port = start_backend("smoke");
+    let backend = start_backend_with_shutdown("smoke");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -31,10 +31,11 @@ fn server_starts_and_serves_request() {
 
 #[test]
 fn health_endpoints_return_200() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
     let admin_port = free_port();
 
+    let backend_port = backend.port();
     let yaml = format!(
         r#"
 admin:
@@ -72,9 +73,9 @@ filter_chains:
 
 #[test]
 fn http_round_trip_preserves_body() {
-    let backend_port = start_backend("hello from backend");
+    let backend = start_backend_with_shutdown("hello from backend");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 

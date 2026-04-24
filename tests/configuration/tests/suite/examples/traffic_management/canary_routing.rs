@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -13,13 +13,13 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
 
 #[test]
 fn canary_routing() {
-    let port_stable = start_backend("stable");
-    let port_canary = start_backend("canary");
+    let backend_stable = start_backend_with_shutdown("stable");
+    let backend_canary = start_backend_with_shutdown("canary");
     let proxy_port = free_port();
     let config = crate::example_utils::load_example_config(
         "traffic-management/canary-routing.yaml",
         proxy_port,
-        HashMap::from([("127.0.0.1:3001", port_stable), ("127.0.0.1:3002", port_canary)]),
+        HashMap::from([("127.0.0.1:3001", backend_stable.port()), ("127.0.0.1:3002", backend_canary.port())]),
     );
     let proxy = start_proxy(&config);
     let total = 200u32;

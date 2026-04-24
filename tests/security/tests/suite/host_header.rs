@@ -5,7 +5,7 @@
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    free_port, http_send, parse_body, parse_status, simple_proxy_yaml, start_backend, start_proxy,
+    free_port, http_send, parse_body, parse_status, simple_proxy_yaml, start_backend_with_shutdown, start_proxy,
 };
 
 // -----------------------------------------------------------------------------
@@ -14,9 +14,9 @@ use praxis_test_utils::{
 
 #[test]
 fn duplicate_host_headers_do_not_crash() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -37,9 +37,9 @@ fn duplicate_host_headers_do_not_crash() {
 
 #[test]
 fn conflicting_host_headers_rejected_or_safe() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -57,9 +57,9 @@ fn conflicting_host_headers_rejected_or_safe() {
 
 #[test]
 fn host_port_mismatch_handled_gracefully() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -77,9 +77,9 @@ fn host_port_mismatch_handled_gracefully() {
 
 #[test]
 fn empty_host_header_handled_gracefully() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -97,9 +97,9 @@ fn empty_host_header_handled_gracefully() {
 
 #[test]
 fn host_with_special_characters_handled() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = simple_proxy_yaml(proxy_port, backend_port);
+    let yaml = simple_proxy_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -116,10 +116,12 @@ fn host_with_special_characters_handled() {
 
 #[test]
 fn conflicting_hosts_do_not_route_to_attacker_backend() {
-    let victim_port = start_backend("victim-response");
-    let attacker_port = start_backend("attacker-response");
+    let victim = start_backend_with_shutdown("victim-response");
+    let attacker = start_backend_with_shutdown("attacker-response");
     let proxy_port = free_port();
 
+    let victim_port = victim.port();
+    let attacker_port = attacker.port();
     let yaml = format!(
         r#"
 listeners:

@@ -4,7 +4,7 @@
 //! Simple proxy throughput benchmarks.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, start_backend, start_proxy};
+use praxis_test_utils::{free_port, start_backend_with_shutdown, start_proxy};
 
 use crate::throughput_utils::{BenchConfig, assert_performance, report_results, run_get_benchmark};
 
@@ -14,7 +14,8 @@ use crate::throughput_utils::{BenchConfig, assert_performance, report_results, r
 
 #[test]
 fn bench_simple_proxy_serial() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = praxis_test_utils::simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -29,7 +30,8 @@ fn bench_simple_proxy_serial() {
 
 #[test]
 fn bench_simple_proxy_concurrent() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = praxis_test_utils::simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -44,7 +46,8 @@ fn bench_simple_proxy_concurrent() {
 
 #[test]
 fn bench_simple_proxy_high_concurrency() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = praxis_test_utils::simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();

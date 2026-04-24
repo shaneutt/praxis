@@ -5,8 +5,8 @@
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    free_port, http_get, http_send, parse_body, parse_header, parse_status, start_backend, start_header_echo_backend,
-    start_proxy,
+    free_port, http_get, http_send, parse_body, parse_header, parse_status, start_backend_with_shutdown,
+    start_header_echo_backend_with_shutdown, start_proxy,
 };
 
 // -----------------------------------------------------------------------------
@@ -15,9 +15,9 @@ use praxis_test_utils::{
 
 #[test]
 fn deny_all_blocks_loopback() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = acl_yaml(proxy_port, backend_port, &[], &["0.0.0.0/0"]);
+    let yaml = acl_yaml(proxy_port, backend.port(), &[], &["0.0.0.0/0"]);
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -27,9 +27,9 @@ fn deny_all_blocks_loopback() {
 
 #[test]
 fn allow_loopback_with_deny_all() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = acl_yaml(proxy_port, backend_port, &["127.0.0.0/8"], &["0.0.0.0/0"]);
+    let yaml = acl_yaml(proxy_port, backend.port(), &["127.0.0.0/8"], &["0.0.0.0/0"]);
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -39,9 +39,9 @@ fn allow_loopback_with_deny_all() {
 
 #[test]
 fn deny_loopback_blocks_request() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = acl_yaml(proxy_port, backend_port, &[], &["127.0.0.0/8"]);
+    let yaml = acl_yaml(proxy_port, backend.port(), &[], &["127.0.0.0/8"]);
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -51,9 +51,9 @@ fn deny_loopback_blocks_request() {
 
 #[test]
 fn empty_acl_allows_all() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = acl_yaml(proxy_port, backend_port, &[], &[]);
+    let yaml = acl_yaml(proxy_port, backend.port(), &[], &[]);
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -63,9 +63,9 @@ fn empty_acl_allows_all() {
 
 #[test]
 fn allow_list_only_rejects_non_matching() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = acl_yaml(proxy_port, backend_port, &["10.0.0.0/8"], &[]);
+    let yaml = acl_yaml(proxy_port, backend.port(), &["10.0.0.0/8"], &[]);
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -75,9 +75,9 @@ fn allow_list_only_rejects_non_matching() {
 
 #[test]
 fn acl_rejection_has_no_body_leakage() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = acl_yaml(proxy_port, backend_port, &[], &["0.0.0.0/0"]);
+    let yaml = acl_yaml(proxy_port, backend.port(), &[], &["0.0.0.0/0"]);
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -100,9 +100,9 @@ fn acl_rejection_has_no_body_leakage() {
 
 #[test]
 fn acl_applies_to_all_methods() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = acl_yaml(proxy_port, backend_port, &[], &["0.0.0.0/0"]);
+    let yaml = acl_yaml(proxy_port, backend.port(), &[], &["0.0.0.0/0"]);
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -119,9 +119,9 @@ fn acl_applies_to_all_methods() {
 
 #[test]
 fn acl_before_router_means_no_routing_on_denied() {
-    let backend_port = start_header_echo_backend();
+    let backend = start_header_echo_backend_with_shutdown();
     let proxy_port = free_port();
-    let yaml = acl_yaml(proxy_port, backend_port, &[], &["0.0.0.0/0"]);
+    let yaml = acl_yaml(proxy_port, backend.port(), &[], &["0.0.0.0/0"]);
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 

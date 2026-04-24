@@ -5,7 +5,7 @@
 
 use std::collections::HashMap;
 
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -13,18 +13,18 @@ use praxis_test_utils::{free_port, http_get, start_backend, start_proxy};
 
 #[test]
 fn virtual_hosts() {
-    let api_port = start_backend("api-host");
-    let web_port = start_backend("web-host");
-    let default_port = start_backend("default-host");
+    let api_backend = start_backend_with_shutdown("api-host");
+    let web_backend = start_backend_with_shutdown("web-host");
+    let default_backend = start_backend_with_shutdown("default-host");
     let proxy_port = free_port();
     let config = crate::example_utils::load_example_config(
         "traffic-management/hosts.yaml",
         proxy_port,
         HashMap::from([
-            ("127.0.0.1:3001", api_port),
-            ("127.0.0.1:3002", api_port),
-            ("127.0.0.1:4000", web_port),
-            ("127.0.0.1:5000", default_port),
+            ("127.0.0.1:3001", api_backend.port()),
+            ("127.0.0.1:3002", api_backend.port()),
+            ("127.0.0.1:4000", web_backend.port()),
+            ("127.0.0.1:5000", default_backend.port()),
         ]),
     );
     let proxy = start_proxy(&config);

@@ -5,8 +5,8 @@
 
 use praxis_core::{config::Config, connectivity::CidrRange};
 use praxis_test_utils::{
-    free_port, free_port_v6, http_get, http_get_v6, ipv6_available, start_backend, start_backend_v6, start_proxy,
-    wait_for_tcp,
+    free_port, free_port_v6, http_get, http_get_v6, ipv6_available, start_backend_v6,
+    start_backend_with_shutdown, start_proxy, wait_for_tcp,
 };
 
 // -----------------------------------------------------------------------------
@@ -20,7 +20,8 @@ fn ipv6_listener_serves_http() {
         return;
     }
 
-    let backend_port = start_backend("ipv6-listener-ok");
+    let _backend = start_backend_with_shutdown("ipv6-listener-ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port_v6();
 
     let yaml = format!(
@@ -102,7 +103,8 @@ fn ipv6_ip_acl_allow() {
         return;
     }
 
-    let backend_port = start_backend("ipv6-acl-ok");
+    let _backend = start_backend_with_shutdown("ipv6-acl-ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port_v6();
 
     let yaml = format!(
@@ -147,7 +149,8 @@ fn ipv6_ip_acl_deny() {
         return;
     }
 
-    let backend_port = start_backend("should-not-reach");
+    let _backend = start_backend_with_shutdown("should-not-reach");
+    let backend_port = _backend.port();
     let proxy_port = free_port_v6();
 
     let yaml = format!(
@@ -189,7 +192,8 @@ fn ipv6_access_log_records_client_address() {
         return;
     }
 
-    let backend_port = start_backend("logged-v6");
+    let _backend = start_backend_with_shutdown("logged-v6");
+    let backend_port = _backend.port();
     let proxy_port = free_port_v6();
 
     let yaml = format!(

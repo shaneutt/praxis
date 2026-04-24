@@ -132,7 +132,8 @@ fn empty_body_post_succeeds() {
 #[test]
 fn response_body_over_limit_handled() {
     let large_body = "r".repeat(2048);
-    let backend_port = praxis_test_utils::start_backend(&large_body);
+    let _backend = praxis_test_utils::start_backend_with_shutdown(&large_body);
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = response_limit_yaml(proxy_port, backend_port, 1024);
     let config = Config::from_yaml(&yaml).unwrap();

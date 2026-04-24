@@ -4,7 +4,7 @@
 //! Information leakage adversarial tests.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_send, parse_body, parse_header, parse_status, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_send, parse_body, parse_header, parse_status, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,9 +12,9 @@ use praxis_test_utils::{free_port, http_send, parse_body, parse_header, parse_st
 
 #[test]
 fn error_responses_have_no_stack_traces() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = deny_all_yaml(proxy_port, backend_port);
+    let yaml = deny_all_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -48,9 +48,9 @@ fn error_responses_have_no_stack_traces() {
 
 #[test]
 fn backend_server_header_not_leaked_in_rejection() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = deny_all_yaml(proxy_port, backend_port);
+    let yaml = deny_all_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -117,9 +117,9 @@ filter_chains:
 
 #[test]
 fn rejection_responses_include_connection_close() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = deny_all_yaml(proxy_port, backend_port);
+    let yaml = deny_all_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 

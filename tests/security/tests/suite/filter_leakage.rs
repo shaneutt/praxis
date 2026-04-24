@@ -4,7 +4,7 @@
 //! Filter header leakage security tests.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_send, parse_header, start_backend, start_proxy};
+use praxis_test_utils::{free_port, http_send, parse_header, start_backend_with_shutdown, start_proxy};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -12,9 +12,9 @@ use praxis_test_utils::{free_port, http_send, parse_header, start_backend, start
 
 #[test]
 fn forwarded_headers_not_leaked_to_client() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = fwd_only_yaml(proxy_port, backend_port);
+    let yaml = fwd_only_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -41,9 +41,9 @@ fn forwarded_headers_not_leaked_to_client() {
 
 #[test]
 fn headers_request_add_not_leaked_to_client() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = headers_request_add_yaml(proxy_port, backend_port);
+    let yaml = headers_request_add_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -62,9 +62,9 @@ fn headers_request_add_not_leaked_to_client() {
 
 #[test]
 fn request_id_not_leaked_to_client() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = request_id_yaml(proxy_port, backend_port);
+    let yaml = request_id_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 
@@ -83,9 +83,9 @@ fn request_id_not_leaked_to_client() {
 
 #[test]
 fn combined_request_headers_not_leaked_to_client() {
-    let backend_port = start_backend("ok");
+    let backend = start_backend_with_shutdown("ok");
     let proxy_port = free_port();
-    let yaml = combined_yaml(proxy_port, backend_port);
+    let yaml = combined_yaml(proxy_port, backend.port());
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
 

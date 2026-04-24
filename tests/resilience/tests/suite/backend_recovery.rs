@@ -15,7 +15,7 @@ use std::{
 };
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, start_backend, start_proxy, wait_for_http};
+use praxis_test_utils::{free_port, http_get, start_backend_with_shutdown, start_proxy, wait_for_http};
 
 // -----------------------------------------------------------------------------
 // Tests
@@ -131,7 +131,8 @@ filter_chains:
 
 #[test]
 fn mixed_healthy_unhealthy_endpoints_serve_from_healthy() {
-    let live_port = start_backend("live-endpoint");
+    let _live_backend = start_backend_with_shutdown("live-endpoint");
+    let live_port = _live_backend.port();
     let dead_port = free_port();
     let proxy_port = free_port();
 

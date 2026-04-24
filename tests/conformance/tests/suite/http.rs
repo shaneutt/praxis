@@ -5,7 +5,8 @@
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    free_port, http_get, http_send, parse_body, parse_status, simple_proxy_yaml, start_backend, start_proxy,
+    free_port, http_get, http_send, parse_body, parse_status, simple_proxy_yaml, start_backend_with_shutdown,
+    start_proxy,
 };
 
 // -----------------------------------------------------------------------------
@@ -14,7 +15,8 @@ use praxis_test_utils::{
 
 #[test]
 fn nonsense_method_does_not_crash() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -31,7 +33,8 @@ fn nonsense_method_does_not_crash() {
 
 #[test]
 fn missing_host_header_does_not_crash() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -48,7 +51,8 @@ fn missing_host_header_does_not_crash() {
 
 #[test]
 fn empty_request_line_no_crash() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -64,7 +68,8 @@ fn empty_request_line_no_crash() {
 
 #[test]
 fn garbage_bytes_no_crash() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -87,7 +92,8 @@ fn garbage_bytes_no_crash() {
 
 #[test]
 fn very_long_uri_handled() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -106,7 +112,8 @@ fn very_long_uri_handled() {
 
 #[test]
 fn very_long_header_value_handled() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -130,7 +137,8 @@ fn very_long_header_value_handled() {
 
 #[test]
 fn many_headers_handled() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -153,7 +161,8 @@ fn many_headers_handled() {
 
 #[test]
 fn content_length_zero_with_no_body() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -169,7 +178,8 @@ fn content_length_zero_with_no_body() {
 
 #[test]
 fn negative_content_length_rejected() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -189,7 +199,8 @@ fn negative_content_length_rejected() {
 
 #[test]
 fn duplicate_content_length_rejected() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -215,7 +226,8 @@ fn duplicate_content_length_rejected() {
 
 #[test]
 fn proxy_recovers_after_malformed_request() {
-    let backend_port = start_backend("recovered");
+    let _backend = start_backend_with_shutdown("recovered");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -230,7 +242,8 @@ fn proxy_recovers_after_malformed_request() {
 
 #[test]
 fn proxy_recovers_after_connection_reset() {
-    let backend_port = start_backend("alive");
+    let _backend = start_backend_with_shutdown("alive");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -248,7 +261,8 @@ fn proxy_recovers_after_connection_reset() {
 
 #[test]
 fn head_request_returns_no_body() {
-    let backend_port = start_backend("should-not-appear");
+    let _backend = start_backend_with_shutdown("should-not-appear");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -264,7 +278,8 @@ fn head_request_returns_no_body() {
 
 #[test]
 fn options_request_handled() {
-    let backend_port = start_backend("ok");
+    let _backend = start_backend_with_shutdown("ok");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
@@ -279,7 +294,8 @@ fn options_request_handled() {
 
 #[test]
 fn handles_concurrent_requests() {
-    let backend_port = start_backend("concurrent");
+    let _backend = start_backend_with_shutdown("concurrent");
+    let backend_port = _backend.port();
     let proxy_port = free_port();
     let yaml = simple_proxy_yaml(proxy_port, backend_port);
     let config = Config::from_yaml(&yaml).unwrap();
