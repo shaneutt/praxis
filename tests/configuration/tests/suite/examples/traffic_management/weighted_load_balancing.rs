@@ -19,7 +19,10 @@ fn weighted_load_balancing() {
     let config = crate::example_utils::load_example_config(
         "traffic-management/weighted-load-balancing.yaml",
         proxy_port,
-        HashMap::from([("127.0.0.1:3001", backend_light.port()), ("127.0.0.1:3002", backend_heavy.port())]),
+        HashMap::from([
+            ("127.0.0.1:3001", backend_light.port()),
+            ("127.0.0.1:3002", backend_heavy.port()),
+        ]),
     );
     let proxy = start_proxy(&config);
 

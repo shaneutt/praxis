@@ -5,8 +5,8 @@
 
 use praxis_core::{config::Config, connectivity::CidrRange};
 use praxis_test_utils::{
-    free_port, free_port_v6, http_get, http_get_v6, ipv6_available, start_backend_v6,
-    start_backend_with_shutdown, start_proxy, wait_for_tcp,
+    free_port, free_port_v6, http_get, http_get_v6, ipv6_available, start_backend_v6, start_backend_with_shutdown,
+    start_proxy, wait_for_tcp,
 };
 
 // -----------------------------------------------------------------------------

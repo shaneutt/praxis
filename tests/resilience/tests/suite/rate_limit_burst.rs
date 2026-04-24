@@ -4,7 +4,9 @@
 //! Tests for rate limiter behavior under burst conditions.
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, http_send, parse_header, parse_status, start_backend_with_shutdown, start_proxy};
+use praxis_test_utils::{
+    free_port, http_get, http_send, parse_header, parse_status, start_backend_with_shutdown, start_proxy,
+};
 
 // -----------------------------------------------------------------------------
 // Tests

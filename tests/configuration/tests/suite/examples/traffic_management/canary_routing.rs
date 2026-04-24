@@ -19,7 +19,10 @@ fn canary_routing() {
     let config = crate::example_utils::load_example_config(
         "traffic-management/canary-routing.yaml",
         proxy_port,
-        HashMap::from([("127.0.0.1:3001", backend_stable.port()), ("127.0.0.1:3002", backend_canary.port())]),
+        HashMap::from([
+            ("127.0.0.1:3001", backend_stable.port()),
+            ("127.0.0.1:3002", backend_canary.port()),
+        ]),
     );
     let proxy = start_proxy(&config);
     let total = 200u32;

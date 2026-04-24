@@ -10,7 +10,9 @@ use std::{
 };
 
 use praxis_core::config::Config;
-use praxis_test_utils::{free_port, http_get, simple_proxy_yaml, start_backend_with_shutdown, start_proxy, wait_for_tcp};
+use praxis_test_utils::{
+    free_port, http_get, simple_proxy_yaml, start_backend_with_shutdown, start_proxy, wait_for_tcp,
+};
 
 // -----------------------------------------------------------------------------
 // Tests

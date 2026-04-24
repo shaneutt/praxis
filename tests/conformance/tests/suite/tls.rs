@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    TestCertificates, free_port, https_get, start_backend_with_shutdown, start_tls_proxy,
-    start_tls_proxy_no_wait, tls_connection_rejected, wait_for_https,
+    TestCertificates, free_port, https_get, start_backend_with_shutdown, start_tls_proxy, start_tls_proxy_no_wait,
+    tls_connection_rejected, wait_for_https,
 };
 
 // -----------------------------------------------------------------------------

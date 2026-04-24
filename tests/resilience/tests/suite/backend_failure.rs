@@ -11,8 +11,8 @@ use std::{
 
 use praxis_core::config::Config;
 use praxis_test_utils::{
-    free_port, http_get, http_post, http_send, parse_status, simple_proxy_yaml, start_backend_with_shutdown, start_proxy,
-    start_slow_backend,
+    free_port, http_get, http_post, http_send, parse_status, simple_proxy_yaml, start_backend_with_shutdown,
+    start_proxy, start_slow_backend,
 };
 
 // -----------------------------------------------------------------------------

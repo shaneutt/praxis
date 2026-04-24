@@ -15,7 +15,12 @@ fn model_to_header_routes_by_model_field() {
     let backend_a = start_backend_with_shutdown("model-a-response");
     let backend_default = start_backend_with_shutdown("default-response");
     let proxy_port = free_port();
-    let yaml = make_yaml(proxy_port, "mistral-large-latest", backend_a.port(), backend_default.port());
+    let yaml = make_yaml(
+        proxy_port,
+        "mistral-large-latest",
+        backend_a.port(),
+        backend_default.port(),
+    );
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
     let (status, body) = http_post(
@@ -35,7 +40,12 @@ fn model_to_header_falls_through_on_unknown_model() {
     let backend_a = start_backend_with_shutdown("model-a-response");
     let backend_default = start_backend_with_shutdown("default-response");
     let proxy_port = free_port();
-    let yaml = make_yaml(proxy_port, "mistral-large-latest", backend_a.port(), backend_default.port());
+    let yaml = make_yaml(
+        proxy_port,
+        "mistral-large-latest",
+        backend_a.port(),
+        backend_default.port(),
+    );
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
     let (status, body) = http_post(proxy.addr(), "/v1/chat", r#"{"model":"unknown","messages":[]}"#);
@@ -48,7 +58,12 @@ fn model_to_header_continues_without_model_field() {
     let backend_a = start_backend_with_shutdown("model-a-response");
     let backend_default = start_backend_with_shutdown("default-response");
     let proxy_port = free_port();
-    let yaml = make_yaml(proxy_port, "mistral-large-latest", backend_a.port(), backend_default.port());
+    let yaml = make_yaml(
+        proxy_port,
+        "mistral-large-latest",
+        backend_a.port(),
+        backend_default.port(),
+    );
     let config = Config::from_yaml(&yaml).unwrap();
     let proxy = start_proxy(&config);
     let (status, body) = http_post(proxy.addr(), "/v1/chat", r#"{"messages":[]}"#);
