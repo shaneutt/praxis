@@ -136,6 +136,14 @@ fn derive_sni(address: &str) -> String {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::field_reassign_with_default,
+    clippy::too_many_lines,
+    reason = "tests"
+)]
 mod tests {
     use std::sync::Arc;
 

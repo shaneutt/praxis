@@ -167,6 +167,7 @@ pub fn build_reloadable_server_config(
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, reason = "tests")]
 mod tests {
     use super::*;
     use crate::{CaConfig, CertKeyPair, ClientCertMode, TlsVersion};

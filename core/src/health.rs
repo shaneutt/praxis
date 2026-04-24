@@ -286,6 +286,15 @@ pub type ClusterHealthState = Arc<Vec<EndpointHealth>>;
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::needless_raw_strings,
+    clippy::needless_raw_string_hashes,
+    clippy::significant_drop_tightening,
+    reason = "tests use unwrap/expect/indexing/raw strings for brevity"
+)]
 mod tests {
     use std::thread;
 

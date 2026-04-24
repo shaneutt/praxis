@@ -352,6 +352,13 @@ fn reject_ip_literal(hostname: &str) -> Result<(), SniParseError> {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::too_many_lines,
+    reason = "tests"
+)]
 mod tests {
     use super::*;
 

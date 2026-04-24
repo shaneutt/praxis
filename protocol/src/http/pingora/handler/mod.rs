@@ -205,6 +205,15 @@ fn h2c_server_options() -> HttpServerOptions {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::field_reassign_with_default,
+    clippy::too_many_lines,
+    clippy::cast_possible_truncation,
+    reason = "tests"
+)]
 mod tests {
     use std::sync::Arc;
 

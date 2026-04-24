@@ -117,6 +117,14 @@ pub fn tcp_builtin(f: fn(&serde_yaml::Value) -> Result<Box<dyn TcpFilter>, Filte
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::unnecessary_wraps,
+    reason = "tests"
+)]
 mod tests {
     use async_trait::async_trait;
 

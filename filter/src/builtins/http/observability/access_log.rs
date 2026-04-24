@@ -178,6 +178,13 @@ fn sanitize_for_log(s: &str) -> Cow<'_, str> {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    reason = "tests"
+)]
 mod tests {
     use std::borrow::Cow;
 

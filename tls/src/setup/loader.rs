@@ -93,6 +93,7 @@ pub(super) fn load_cert_and_key(
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, reason = "tests")]
 mod tests {
     use super::*;
 

@@ -214,6 +214,13 @@ async fn run_request_filter(
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    reason = "tests"
+)]
 mod tests {
     use bytes::Bytes;
     use praxis_core::config::{ResponseCondition, ResponseConditionMatch};

@@ -288,6 +288,14 @@ fn resolve_named_rejoin(
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::redundant_closure_for_method_calls,
+    reason = "tests"
+)]
 mod tests {
     use std::collections::HashMap;
 

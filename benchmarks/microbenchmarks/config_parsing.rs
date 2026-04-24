@@ -4,6 +4,7 @@
 //! Criterion benchmarks for YAML config deserialization.
 
 #![deny(unsafe_code)]
+#![allow(clippy::unwrap_used, clippy::expect_used, reason = "benchmarks")]
 
 use std::hint::black_box;
 

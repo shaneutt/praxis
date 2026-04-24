@@ -98,6 +98,13 @@ fn validate_pipeline(
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::too_many_lines,
+    reason = "tests"
+)]
 mod tests {
     use praxis_core::{config::Config, health::HealthRegistry};
     use praxis_filter::FilterRegistry;

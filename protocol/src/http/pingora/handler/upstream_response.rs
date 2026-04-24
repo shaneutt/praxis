@@ -52,6 +52,13 @@ pub(crate) fn strip_hop_by_hop_response(resp: &mut ResponseHeader) {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::too_many_lines,
+    reason = "tests"
+)]
 mod tests {
     use super::*;
 

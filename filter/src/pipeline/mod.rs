@@ -16,6 +16,18 @@ mod http_utils;
 mod tcp;
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::field_reassign_with_default,
+    clippy::type_complexity,
+    clippy::too_many_lines,
+    clippy::redundant_closure_for_method_calls,
+    clippy::doc_markdown,
+    reason = "tests"
+)]
 mod tests;
 
 use praxis_core::health::HealthRegistry;

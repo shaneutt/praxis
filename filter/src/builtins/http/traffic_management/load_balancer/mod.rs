@@ -11,6 +11,14 @@ mod round_robin;
 mod strategy;
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::too_many_lines,
+    reason = "tests"
+)]
 mod tests;
 
 use std::{collections::HashMap, sync::Arc};

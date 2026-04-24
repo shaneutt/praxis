@@ -98,6 +98,7 @@ pub(super) fn build_sni_resolver(certificates: &[CertKeyPair]) -> Result<SniCert
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, reason = "tests")]
 mod tests {
     use super::{super::tests::gen_test_certs, *};
 

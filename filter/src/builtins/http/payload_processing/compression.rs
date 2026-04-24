@@ -200,6 +200,13 @@ impl HttpFilter for CompressionFilter {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    reason = "tests"
+)]
 mod tests {
     use super::*;
 
@@ -254,14 +261,14 @@ mod tests {
 
     #[test]
     fn from_config_all_algorithms_disabled_errors() {
-        let yaml = r#"
+        let yaml = "
 gzip:
   enabled: false
 brotli:
   enabled: false
 zstd:
   enabled: false
-"#;
+";
         let config: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
         let err = CompressionFilter::from_config(&config).err().expect("should fail");
         assert!(err.to_string().contains("at least one algorithm"), "got: {err}");
@@ -291,7 +298,7 @@ content_types:
 
     #[test]
     fn from_config_per_algorithm_levels() {
-        let yaml = r#"
+        let yaml = "
 level: 4
 gzip:
   level: 6
@@ -300,7 +307,7 @@ brotli:
   enabled: true
 zstd:
   enabled: false
-"#;
+";
         let config: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
         let filter = CompressionFilter::from_config(&config).unwrap();
         assert_eq!(filter.name(), "compression", "per-algorithm config should parse");

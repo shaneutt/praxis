@@ -162,6 +162,14 @@ fn parse_header(s: &str) -> Result<(&str, &str), String> {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::too_many_lines,
+    clippy::redundant_closure_for_method_calls,
+    reason = "tests"
+)]
 mod tests {
     use super::*;
 

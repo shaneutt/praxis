@@ -93,7 +93,14 @@ macro_rules! register_filters {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(unreachable_pub, reason = "internal pub items re-exported selectively")]
+#[allow(
+    unreachable_pub,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unnecessary_wraps,
+    reason = "internal pub items re-exported selectively; test module"
+)]
 mod macro_tests {
     use async_trait::async_trait;
 
@@ -202,6 +209,7 @@ mod macro_tests {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(clippy::expect_used, reason = "test utilities")]
 pub(crate) mod test_utils {
     use http::{HeaderMap, Method, Uri};
 

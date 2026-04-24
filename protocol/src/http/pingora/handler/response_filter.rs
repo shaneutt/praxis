@@ -105,6 +105,7 @@ fn write_headers_to_pingora(src: &http::HeaderMap, status: http::StatusCode, dst
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, reason = "tests")]
 mod tests {
     use praxis_filter::{FilterPipeline, FilterRegistry, Request};
 

@@ -122,6 +122,14 @@ fn default_result_key() -> String {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::needless_raw_strings,
+    clippy::needless_raw_string_hashes,
+    reason = "tests use unwrap/expect/indexing/raw strings for brevity"
+)]
 mod tests {
     use super::*;
 

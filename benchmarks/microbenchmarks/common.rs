@@ -3,6 +3,13 @@
 
 //! Shared utility functions for Criterion benchmarks.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    reason = "benchmarks"
+)]
+
 use http::{HeaderMap, Method, Uri};
 use praxis_filter::{HttpFilterContext, Request};
 
@@ -26,9 +33,12 @@ pub(crate) fn bench_runtime() -> tokio::runtime::Runtime {
 /// or response header set.
 pub(crate) fn make_ctx(req: &Request) -> HttpFilterContext<'_> {
     HttpFilterContext {
+        branch_iterations: std::collections::HashMap::new(),
         client_addr: None,
         cluster: None,
+        executed_filter_indices: Vec::new(),
         extra_request_headers: Vec::new(),
+        filter_results: std::collections::HashMap::new(),
         health_registry: None,
         request: req,
         request_body_bytes: 0,

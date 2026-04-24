@@ -333,6 +333,13 @@ fn validate_multi_cert_defaults(certificates: &[CertKeyPair]) -> Result<(), TlsE
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::too_many_lines,
+    reason = "tests"
+)]
 mod tests {
     use super::*;
 

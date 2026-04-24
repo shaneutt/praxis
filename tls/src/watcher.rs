@@ -197,6 +197,13 @@ fn parent_dir(path: &str) -> PathBuf {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::used_underscore_binding,
+    reason = "tests"
+)]
 mod tests {
     use super::*;
 

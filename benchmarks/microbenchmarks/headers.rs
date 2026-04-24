@@ -4,6 +4,13 @@
 //! Criterion benchmarks for header manipulation filter.
 
 #![deny(unsafe_code)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::too_many_lines,
+    reason = "benchmarks"
+)]
 
 mod common;
 

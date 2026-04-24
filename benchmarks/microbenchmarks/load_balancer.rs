@@ -4,6 +4,12 @@
 //! Criterion benchmarks for load balancer endpoint selection.
 
 #![deny(unsafe_code)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::too_many_lines,
+    reason = "benchmarks"
+)]
 
 mod common;
 

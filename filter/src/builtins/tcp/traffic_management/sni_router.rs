@@ -276,6 +276,17 @@ fn validate_server_name(name: &str) -> Result<(), FilterError> {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::needless_raw_strings,
+    clippy::needless_raw_string_hashes,
+    clippy::redundant_closure_for_method_calls,
+    clippy::stable_sort_primitive,
+    reason = "tests"
+)]
 mod tests {
     use std::time::Instant;
 

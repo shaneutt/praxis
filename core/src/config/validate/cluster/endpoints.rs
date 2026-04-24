@@ -42,6 +42,14 @@ pub(super) fn validate_endpoints(cluster: &Cluster) -> Result<(), ProxyError> {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::needless_raw_strings,
+    clippy::needless_raw_string_hashes,
+    reason = "tests use unwrap/expect/indexing/raw strings for brevity"
+)]
 mod tests {
     use super::super::validate_clusters;
     use crate::config::{Cluster, Config, InsecureOptions};

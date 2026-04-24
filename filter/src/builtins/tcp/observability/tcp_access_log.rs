@@ -88,6 +88,13 @@ impl TcpFilter for TcpAccessLogFilter {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    reason = "tests"
+)]
 mod tests {
     use std::time::Instant;
 

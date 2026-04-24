@@ -75,6 +75,14 @@ pub(crate) fn apply_rewritten_path(req: &mut RequestHeader, ctx: &mut PingoraReq
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::field_reassign_with_default,
+    clippy::too_many_lines,
+    reason = "tests"
+)]
 mod tests {
     use super::*;
 

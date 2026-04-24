@@ -151,7 +151,7 @@ fuzz-build:
 # -------------------------------------------------------------------
 
 lint:
-	cargo clippy --workspace -- -D warnings
+	cargo clippy --workspace --all-targets -- -D warnings
 	cargo +nightly fmt --all -- --check
 
 fmt:

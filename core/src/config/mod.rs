@@ -207,6 +207,16 @@ fn default_shutdown_timeout_secs() -> u64 {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::needless_raw_strings,
+    clippy::needless_raw_string_hashes,
+    clippy::too_many_lines,
+    clippy::panic,
+    reason = "tests use unwrap/expect/indexing/raw strings/panic for brevity"
+)]
 mod tests {
     use std::path::Path;
 

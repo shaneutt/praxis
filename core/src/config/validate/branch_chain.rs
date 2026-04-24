@@ -209,6 +209,17 @@ fn validate_chain_ref(
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::needless_raw_strings,
+    clippy::needless_raw_string_hashes,
+    clippy::too_many_lines,
+    clippy::items_after_statements,
+    clippy::panic,
+    reason = "tests use unwrap/expect/indexing/raw strings/panic for brevity"
+)]
 mod tests {
     use crate::config::Config;
 

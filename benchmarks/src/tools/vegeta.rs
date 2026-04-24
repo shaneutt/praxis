@@ -367,6 +367,15 @@ fn ns_to_secs(ns: u64) -> f64 {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::too_many_lines,
+    clippy::cognitive_complexity,
+    reason = "tests"
+)]
 mod tests {
     use super::*;
 

@@ -117,6 +117,7 @@ fn build_tcp_tls_settings(
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, reason = "tests")]
 mod tests {
     use praxis_core::config::{AdminConfig, BodyLimitsConfig, Config, InsecureOptions, RuntimeConfig};
 

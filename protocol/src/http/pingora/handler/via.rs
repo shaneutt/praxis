@@ -91,6 +91,13 @@ pub(crate) fn append_response_via(resp: &mut pingora_http::ResponseHeader, clien
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::field_reassign_with_default,
+    reason = "tests"
+)]
 mod tests {
     use super::*;
 

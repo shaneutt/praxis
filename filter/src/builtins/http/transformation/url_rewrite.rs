@@ -379,6 +379,15 @@ fn build_path_and_query(path: &str, query: Option<&str>) -> String {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::needless_raw_strings,
+    clippy::needless_raw_string_hashes,
+    reason = "tests"
+)]
 mod tests {
     use http::Method;
 

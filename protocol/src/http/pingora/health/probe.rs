@@ -134,6 +134,7 @@ pub async fn tcp_probe(addr: &str, timeout: Duration) -> bool {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, reason = "tests")]
 mod tests {
     use super::*;
 

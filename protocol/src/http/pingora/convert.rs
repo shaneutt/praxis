@@ -151,6 +151,13 @@ pub(crate) fn apply_connection_options(peer: &mut HttpPeer, opts: &ConnectionOpt
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::too_many_lines,
+    reason = "tests"
+)]
 mod tests {
     use std::time::Duration;
 

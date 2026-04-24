@@ -153,6 +153,13 @@ fn validate_result_value(value: &str) -> Result<(), FilterError> {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    reason = "tests"
+)]
 mod tests {
     use super::*;
 

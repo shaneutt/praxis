@@ -8,6 +8,14 @@ mod filter;
 mod rule;
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    clippy::needless_raw_strings,
+    reason = "tests"
+)]
 mod tests;
 
 pub use self::{config::GuardrailsAction, filter::GuardrailsFilter};

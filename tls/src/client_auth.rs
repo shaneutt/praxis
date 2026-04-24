@@ -102,6 +102,7 @@ fn load_ca_root_store(ca_path: &str) -> Result<RootCertStore, TlsError> {
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, reason = "tests")]
 mod tests {
     use super::*;
 

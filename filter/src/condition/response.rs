@@ -105,6 +105,13 @@ fn matches_status_headers(m: &ResponseConditionMatch, status: http::StatusCode, 
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    clippy::panic,
+    reason = "tests"
+)]
 mod tests {
     use std::collections::HashMap;
 
