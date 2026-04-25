@@ -60,6 +60,12 @@ guide. Key points:
 - Use inline format args: `format!("{var}")`
 - Use let-chains, `is_some_and()`, `strip_prefix()`
 - Reference-style rustdoc links, not inline
+- Do not document memory efficiency in rustdoc
+  (e.g. "avoids allocation", "zero-copy", "cheap
+  clone"). Correct memory use is expected; it does
+  not need narration.
+- Do not create re-export-only files. Import directly
+  from the source module. No `pub use` shim files.
 
 ## File Ordering
 
