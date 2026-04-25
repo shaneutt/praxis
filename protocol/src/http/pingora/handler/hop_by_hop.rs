@@ -50,10 +50,36 @@ pub(crate) const RESPONSE_HOP_BY_HOP: &[&str] = &[
 // Strip Logic
 // -----------------------------------------------------------------------------
 
-/// Collect extra header names declared in `Connection` values.
+/// Whether `Upgrade` and `Connection` should be preserved.
+///
+/// Returns `true` when a header name is `upgrade` or `connection`
+/// and the request is a `WebSocket` upgrade. Only `WebSocket` upgrades
+/// are preserved; other upgrade types (notably `h2c`) are stripped
+/// to prevent h2c smuggling attacks that bypass proxy access
+/// controls.
+pub(crate) fn preserve_for_upgrade(name: &str, is_websocket_upgrade: bool) -> bool {
+    is_websocket_upgrade && (name == "upgrade" || name == "connection")
+}
+
+/// Whether the `Upgrade` header value indicates a `WebSocket` upgrade.
+///
+/// Returns `true` only when the value is exactly `websocket`
+/// (case-insensitive per [RFC 6455 Section 4.1]). Mixed values
+/// like `h2c, websocket` are rejected because they could allow
+/// the upstream to negotiate a non-WebSocket protocol.
+///
+/// [RFC 6455 Section 4.1]: https://datatracker.ietf.org/doc/html/rfc6455#section-4.1
+pub(crate) fn is_websocket_upgrade(value: &str) -> bool {
+    value.trim().eq_ignore_ascii_case("websocket")
+}
+
+/// Collect extra header names declared in `Connection` values
+/// ([RFC 9110 Section 7.6.1]).
 ///
 /// Parses comma-separated tokens from the `Connection` header and
 /// returns any that are not already in the static list.
+///
+/// [RFC 9110 Section 7.6.1]: https://datatracker.ietf.org/doc/html/rfc9110#section-7.6.1
 pub(crate) fn connection_tokens(headers: &HeaderMap, static_list: &[&str]) -> Vec<String> {
     let mut extra = Vec::new();
     for val in headers.get_all("connection") {
@@ -66,4 +92,77 @@ pub(crate) fn connection_tokens(headers: &HeaderMap, static_list: &[&str]) -> Ve
         }
     }
     extra
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn websocket_lowercase_is_upgrade() {
+        assert!(
+            is_websocket_upgrade("websocket"),
+            "lowercase 'websocket' should be recognized"
+        );
+    }
+
+    #[test]
+    fn websocket_uppercase_is_upgrade() {
+        assert!(
+            is_websocket_upgrade("WEBSOCKET"),
+            "uppercase 'WEBSOCKET' should be recognized"
+        );
+    }
+
+    #[test]
+    fn websocket_mixed_case_is_upgrade() {
+        assert!(
+            is_websocket_upgrade("WebSocket"),
+            "mixed-case 'WebSocket' should be recognized per RFC 6455"
+        );
+    }
+
+    #[test]
+    fn websocket_with_whitespace_is_upgrade() {
+        assert!(
+            is_websocket_upgrade("  websocket  "),
+            "whitespace-padded 'websocket' should be recognized"
+        );
+    }
+
+    #[test]
+    fn h2c_is_not_websocket_upgrade() {
+        assert!(
+            !is_websocket_upgrade("h2c"),
+            "h2c upgrade must be rejected to prevent smuggling"
+        );
+    }
+
+    #[test]
+    fn mixed_h2c_websocket_is_not_upgrade() {
+        assert!(
+            !is_websocket_upgrade("h2c, websocket"),
+            "mixed upgrade values must be rejected"
+        );
+    }
+
+    #[test]
+    fn empty_value_is_not_upgrade() {
+        assert!(
+            !is_websocket_upgrade(""),
+            "empty upgrade value should not be recognized"
+        );
+    }
+
+    #[test]
+    fn arbitrary_protocol_is_not_upgrade() {
+        assert!(
+            !is_websocket_upgrade("SMTP"),
+            "arbitrary protocol should not be recognized"
+        );
+    }
 }

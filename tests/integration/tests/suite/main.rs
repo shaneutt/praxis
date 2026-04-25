@@ -58,4 +58,5 @@ mod sni_router;
 mod tcp_access_log;
 mod tls;
 mod url_rewrite;
+mod websocket;
 mod wildcard_routing;

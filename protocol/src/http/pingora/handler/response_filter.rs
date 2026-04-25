@@ -5,7 +5,7 @@
 
 use pingora_core::Result;
 use praxis_filter::{FilterAction, FilterPipeline};
-use tracing::warn;
+use tracing::{debug, warn};
 
 use super::super::{context::PingoraRequestCtx, convert::response_header_from_pingora};
 
@@ -25,8 +25,13 @@ pub(super) async fn execute(
     upstream_response: &mut pingora_http::ResponseHeader,
     ctx: &mut PingoraRequestCtx,
 ) -> Result<()> {
-    super::upstream_response::strip_hop_by_hop_response(upstream_response);
+    let is_upgrade_response = upstream_response.status == 101 && is_websocket_101(&upstream_response.headers);
+    if upstream_response.status == 101 && !is_upgrade_response {
+        debug!("101 response missing valid WebSocket Upgrade header; not marking as upgraded");
+    }
+    super::upstream_response::strip_hop_by_hop_response(upstream_response, is_upgrade_response);
     let mut resp = response_header_from_pingora(upstream_response);
+    ctx.connection_upgraded = is_upgrade_response;
     ctx.response_phase_done = true;
 
     let (result, _headers_modified) = run_response_pipeline(pipeline, ctx, &mut resp).await?;
@@ -101,11 +106,34 @@ fn write_headers_to_pingora(src: &http::HeaderMap, status: http::StatusCode, dst
 }
 
 // -----------------------------------------------------------------------------
+// Private Utilities
+// -----------------------------------------------------------------------------
+
+/// Whether a 101 response carries a valid `WebSocket` `Upgrade` header.
+///
+/// Returns `true` only when the response includes an `Upgrade` header
+/// whose value is exactly `websocket` (case-insensitive). A bare 101
+/// without proper `WebSocket` headers (e.g. from a buggy upstream)
+/// should not be treated as a successful upgrade.
+fn is_websocket_101(headers: &http::HeaderMap) -> bool {
+    headers
+        .get(http::header::UPGRADE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.trim().eq_ignore_ascii_case("websocket"))
+}
+
+// -----------------------------------------------------------------------------
 // Tests
 // -----------------------------------------------------------------------------
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, reason = "tests")]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::field_reassign_with_default,
+    clippy::indexing_slicing,
+    reason = "tests"
+)]
 mod tests {
     use praxis_filter::{FilterPipeline, FilterRegistry, Request};
 
@@ -149,6 +177,97 @@ mod tests {
         assert_eq!(upstream_response.headers.len(), 2);
     }
 
+    #[tokio::test]
+    async fn websocket_101_sets_connection_upgraded() {
+        let pipeline = make_pipeline();
+        let mut resp = pingora_http::ResponseHeader::build(101, None).unwrap();
+        drop(resp.insert_header("upgrade", "websocket"));
+        drop(resp.insert_header("connection", "Upgrade"));
+        let mut ctx = make_ctx();
+
+        execute(&pipeline, &mut resp, &mut ctx).await.unwrap();
+
+        assert!(
+            ctx.connection_upgraded,
+            "valid WebSocket 101 should set connection_upgraded"
+        );
+    }
+
+    #[tokio::test]
+    async fn bare_101_without_upgrade_header_does_not_set_flag() {
+        let pipeline = make_pipeline();
+        let mut resp = pingora_http::ResponseHeader::build(101, None).unwrap();
+        let mut ctx = make_ctx();
+
+        execute(&pipeline, &mut resp, &mut ctx).await.unwrap();
+
+        assert!(
+            !ctx.connection_upgraded,
+            "bare 101 without Upgrade header should not set connection_upgraded"
+        );
+    }
+
+    #[tokio::test]
+    async fn non_websocket_101_does_not_set_flag() {
+        let pipeline = make_pipeline();
+        let mut resp = pingora_http::ResponseHeader::build(101, None).unwrap();
+        drop(resp.insert_header("upgrade", "h2c"));
+        drop(resp.insert_header("connection", "Upgrade"));
+        let mut ctx = make_ctx();
+
+        execute(&pipeline, &mut resp, &mut ctx).await.unwrap();
+
+        assert!(
+            !ctx.connection_upgraded,
+            "non-WebSocket 101 (h2c) should not set connection_upgraded"
+        );
+    }
+
+    #[tokio::test]
+    async fn non_101_status_never_sets_flag() {
+        let pipeline = make_pipeline();
+        let mut resp = pingora_http::ResponseHeader::build(200, None).unwrap();
+        drop(resp.insert_header("upgrade", "websocket"));
+        let mut ctx = make_ctx();
+
+        execute(&pipeline, &mut resp, &mut ctx).await.unwrap();
+
+        assert!(
+            !ctx.connection_upgraded,
+            "200 with Upgrade header should not set connection_upgraded"
+        );
+    }
+
+    #[test]
+    fn is_websocket_101_with_valid_header() {
+        let mut headers = http::HeaderMap::new();
+        headers.insert(http::header::UPGRADE, "websocket".parse().unwrap());
+        assert!(is_websocket_101(&headers), "should recognize lowercase websocket");
+    }
+
+    #[test]
+    fn is_websocket_101_case_insensitive() {
+        let mut headers = http::HeaderMap::new();
+        headers.insert(http::header::UPGRADE, "WebSocket".parse().unwrap());
+        assert!(is_websocket_101(&headers), "should recognize mixed-case WebSocket");
+    }
+
+    #[test]
+    fn is_websocket_101_missing_header() {
+        let headers = http::HeaderMap::new();
+        assert!(
+            !is_websocket_101(&headers),
+            "missing Upgrade header should return false"
+        );
+    }
+
+    #[test]
+    fn is_websocket_101_wrong_protocol() {
+        let mut headers = http::HeaderMap::new();
+        headers.insert(http::header::UPGRADE, "h2c".parse().unwrap());
+        assert!(!is_websocket_101(&headers), "h2c should not be treated as websocket");
+    }
+
     // -------------------------------------------------------------------------
     // Test Utilities
     // -------------------------------------------------------------------------
@@ -161,13 +280,12 @@ mod tests {
 
     /// Create a request context with a GET snapshot for tests.
     fn make_ctx() -> PingoraRequestCtx {
-        PingoraRequestCtx {
-            request_snapshot: Some(Request {
-                method: http::Method::GET,
-                uri: http::Uri::from_static("/"),
-                headers: http::HeaderMap::new(),
-            }),
-            ..Default::default()
-        }
+        let mut ctx = PingoraRequestCtx::default();
+        ctx.request_snapshot = Some(Request {
+            method: http::Method::GET,
+            uri: http::Uri::from_static("/"),
+            headers: http::HeaderMap::new(),
+        });
+        ctx
     }
 }

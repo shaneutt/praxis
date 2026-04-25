@@ -23,15 +23,37 @@ use super::{
 ///
 /// Removes all RFC-defined hop-by-hop headers plus any custom
 /// headers declared in the `Connection` header value.
-pub(crate) fn strip_hop_by_hop(req: &mut RequestHeader) {
+///
+/// Preserves the `Upgrade` and `Connection` headers only for
+/// `WebSocket` upgrades ([RFC 6455]). Other upgrade types such
+/// as `h2c` are always stripped to prevent smuggling attacks.
+///
+/// [RFC 6455]: https://datatracker.ietf.org/doc/html/rfc6455
+pub(crate) fn strip_hop_by_hop(req: &mut RequestHeader, is_upgrade: bool) {
+    let is_ws = is_upgrade && is_websocket_request(&req.headers);
     let extra = hop_by_hop::connection_tokens(&req.headers, REQUEST_HOP_BY_HOP);
 
     for name in REQUEST_HOP_BY_HOP {
+        if hop_by_hop::preserve_for_upgrade(name, is_ws) {
+            continue;
+        }
         let _remove = req.remove_header(*name);
     }
     for name in &extra {
         let _remove = req.remove_header(name.as_str());
     }
+
+    if is_upgrade && !is_ws {
+        debug!("stripping non-WebSocket upgrade headers to prevent h2c smuggling");
+    }
+}
+
+/// Check whether the request's `Upgrade` header is `WebSocket`.
+fn is_websocket_request(headers: &http::HeaderMap) -> bool {
+    headers
+        .get("upgrade")
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(hop_by_hop::is_websocket_upgrade)
 }
 
 // -----------------------------------------------------------------------------
@@ -100,7 +122,7 @@ mod tests {
             ("x-real-header", "keep-me"),
         ]);
 
-        strip_hop_by_hop(&mut req);
+        strip_hop_by_hop(&mut req, false);
 
         assert!(
             req.headers.get("connection").is_none(),
@@ -147,7 +169,7 @@ mod tests {
             ("x-safe", "keep"),
         ]);
 
-        strip_hop_by_hop(&mut req);
+        strip_hop_by_hop(&mut req, false);
 
         assert!(
             req.headers.get("connection").is_none(),
@@ -177,7 +199,7 @@ mod tests {
             ("content-type", "application/json"),
         ]);
 
-        strip_hop_by_hop(&mut req);
+        strip_hop_by_hop(&mut req, false);
 
         assert_eq!(
             req.headers.get("host").unwrap(),
@@ -205,7 +227,7 @@ mod tests {
     fn connection_header_with_single_value() {
         let mut req = make_request(&[("connection", "X-Only"), ("x-only", "gone"), ("x-keep", "stay")]);
 
-        strip_hop_by_hop(&mut req);
+        strip_hop_by_hop(&mut req, false);
 
         assert!(
             req.headers.get("connection").is_none(),
@@ -232,7 +254,7 @@ mod tests {
             ("x-d", "4"),
         ]);
 
-        strip_hop_by_hop(&mut req);
+        strip_hop_by_hop(&mut req, false);
 
         assert!(
             req.headers.get("x-a").is_none(),
@@ -257,7 +279,7 @@ mod tests {
     fn connection_value_case_insensitive() {
         let mut req = make_request(&[("connection", "X-MiXeD-CaSe"), ("x-mixed-case", "stripped")]);
 
-        strip_hop_by_hop(&mut req);
+        strip_hop_by_hop(&mut req, false);
 
         assert!(
             req.headers.get("x-mixed-case").is_none(),
@@ -269,7 +291,7 @@ mod tests {
     fn connection_value_referencing_standard_hop_by_hop() {
         let mut req = make_request(&[("connection", "keep-alive"), ("keep-alive", "timeout=5")]);
 
-        strip_hop_by_hop(&mut req);
+        strip_hop_by_hop(&mut req, false);
 
         assert!(
             req.headers.get("connection").is_none(),
@@ -285,7 +307,7 @@ mod tests {
     fn empty_connection_header_value() {
         let mut req = make_request(&[("connection", ""), ("x-safe", "keep")]);
 
-        strip_hop_by_hop(&mut req);
+        strip_hop_by_hop(&mut req, false);
 
         assert!(
             req.headers.get("connection").is_none(),
@@ -302,7 +324,7 @@ mod tests {
     fn only_hop_by_hop_headers_all_removed() {
         let mut req = make_request(&[("connection", "close"), ("keep-alive", "300"), ("upgrade", "h2c")]);
 
-        strip_hop_by_hop(&mut req);
+        strip_hop_by_hop(&mut req, false);
 
         assert!(
             req.headers.get("connection").is_none(),
@@ -332,7 +354,7 @@ mod tests {
             ("cookie", "session=abc"),
         ]);
 
-        strip_hop_by_hop(&mut req);
+        strip_hop_by_hop(&mut req, false);
 
         assert!(
             req.headers.get("connection").is_none(),
@@ -374,7 +396,7 @@ mod tests {
     #[test]
     fn empty_request_no_panic() {
         let mut req = RequestHeader::build("GET", b"/", None).unwrap();
-        strip_hop_by_hop(&mut req);
+        strip_hop_by_hop(&mut req, false);
     }
 
     #[test]
@@ -483,6 +505,108 @@ mod tests {
         apply_rewritten_path(&mut req, &mut ctx);
 
         assert_eq!(req.uri.path(), "/", "root path should be accepted");
+    }
+
+    #[test]
+    fn upgrade_preserves_upgrade_and_connection() {
+        let mut req = make_request(&[
+            ("upgrade", "websocket"),
+            ("connection", "Upgrade"),
+            ("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ=="),
+            ("keep-alive", "300"),
+        ]);
+
+        strip_hop_by_hop(&mut req, true);
+
+        assert_eq!(
+            req.headers.get("upgrade").unwrap(),
+            "websocket",
+            "upgrade header should be preserved for upgrade requests"
+        );
+        assert_eq!(
+            req.headers.get("connection").unwrap(),
+            "Upgrade",
+            "connection header should be preserved for upgrade requests"
+        );
+        assert_eq!(
+            req.headers.get("sec-websocket-key").unwrap(),
+            "dGhlIHNhbXBsZSBub25jZQ==",
+            "websocket headers should be preserved"
+        );
+        assert!(
+            req.headers.get("keep-alive").is_none(),
+            "other hop-by-hop headers should still be stripped"
+        );
+    }
+
+    #[test]
+    fn non_upgrade_strips_upgrade_and_connection() {
+        let mut req = make_request(&[("upgrade", "websocket"), ("connection", "Upgrade")]);
+
+        strip_hop_by_hop(&mut req, false);
+
+        assert!(
+            req.headers.get("upgrade").is_none(),
+            "upgrade should be stripped for non-upgrade requests"
+        );
+        assert!(
+            req.headers.get("connection").is_none(),
+            "connection should be stripped for non-upgrade requests"
+        );
+    }
+
+    #[test]
+    fn h2c_upgrade_strips_all_hop_by_hop() {
+        let mut req = make_request(&[
+            ("upgrade", "h2c"),
+            ("connection", "Upgrade"),
+            ("http2-settings", "AAMAAABkAAQCAAAAAAIAAAAA"),
+        ]);
+
+        strip_hop_by_hop(&mut req, true);
+
+        assert!(
+            req.headers.get("upgrade").is_none(),
+            "h2c upgrade header must be stripped to prevent smuggling"
+        );
+        assert!(
+            req.headers.get("connection").is_none(),
+            "connection header must be stripped for h2c upgrades"
+        );
+    }
+
+    #[test]
+    fn mixed_upgrade_strips_all() {
+        let mut req = make_request(&[("upgrade", "h2c, websocket"), ("connection", "Upgrade")]);
+
+        strip_hop_by_hop(&mut req, true);
+
+        assert!(
+            req.headers.get("upgrade").is_none(),
+            "mixed upgrade values must be stripped to prevent protocol negotiation abuse"
+        );
+        assert!(
+            req.headers.get("connection").is_none(),
+            "connection must be stripped when upgrade value is not purely websocket"
+        );
+    }
+
+    #[test]
+    fn websocket_case_insensitive() {
+        let mut req = make_request(&[("upgrade", "WEBSOCKET"), ("connection", "Upgrade")]);
+
+        strip_hop_by_hop(&mut req, true);
+
+        assert_eq!(
+            req.headers.get("upgrade").unwrap(),
+            "WEBSOCKET",
+            "case-insensitive WebSocket upgrade should be preserved"
+        );
+        assert_eq!(
+            req.headers.get("connection").unwrap(),
+            "Upgrade",
+            "connection should be preserved for WebSocket upgrades"
+        );
     }
 
     // -------------------------------------------------------------------------

@@ -1,0 +1,32 @@
+# WebSocket Proxy
+#
+# HTTP listener that transparently proxies WebSocket upgrade
+# requests. Pingora detects the Upgrade handshake and switches
+# to bidirectional byte forwarding after the 101 response.
+# No special configuration is needed; any HTTP listener that
+# routes to a WebSocket-capable upstream will proxy upgrades.
+#
+#   Client -> WS -> Praxis :8080 -> WS -> Backend :3000
+#
+# Usage:
+#   cargo run -p praxis -- -c examples/configs/protocols/websocket.yaml
+
+listeners:
+  - name: web
+    address: "127.0.0.1:8080"
+    filter_chains: [ main ]
+
+filter_chains:
+  - name: main
+    filters:
+      - filter: request_id
+      - filter: access_log
+      - filter: router
+        routes:
+          - path_prefix: "/"
+            cluster: backend
+      - filter: load_balancer
+        clusters:
+          - name: backend
+            endpoints:
+              - "127.0.0.1:3000"

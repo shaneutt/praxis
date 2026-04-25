@@ -12,6 +12,7 @@
 //! [RFC 9110 Section 7.6.1]: https://datatracker.ietf.org/doc/html/rfc9110#section-7.6.1
 
 use pingora_http::ResponseHeader;
+use tracing::debug;
 
 use super::hop_by_hop::{self, RESPONSE_HOP_BY_HOP};
 
@@ -25,6 +26,11 @@ use super::hop_by_hop::{self, RESPONSE_HOP_BY_HOP};
 /// headers declared in the `Connection` header value. Must be
 /// called before the response reaches the client.
 ///
+/// On 101 responses, preserves the `Upgrade` and `Connection`
+/// headers only when the `Upgrade` value is `websocket`
+/// ([RFC 6455]). Non-`WebSocket` 101 responses (e.g. `h2c`) have
+/// upgrade headers stripped to prevent smuggling.
+///
 /// ```ignore
 /// use pingora_http::ResponseHeader;
 /// use praxis_protocol::http::pingora::handler::upstream_response;
@@ -32,19 +38,37 @@ use super::hop_by_hop::{self, RESPONSE_HOP_BY_HOP};
 /// let mut resp = ResponseHeader::build(200, None).unwrap();
 /// resp.insert_header("Connection", "X-Internal").unwrap();
 /// resp.insert_header("X-Internal", "secret").unwrap();
-/// upstream_response::strip_hop_by_hop_response(&mut resp);
+/// upstream_response::strip_hop_by_hop_response(&mut resp, false);
 /// assert!(resp.headers.get("Connection").is_none());
 /// assert!(resp.headers.get("X-Internal").is_none());
 /// ```
-pub(crate) fn strip_hop_by_hop_response(resp: &mut ResponseHeader) {
+///
+/// [RFC 6455]: https://datatracker.ietf.org/doc/html/rfc6455
+pub(crate) fn strip_hop_by_hop_response(resp: &mut ResponseHeader, is_upgrade_response: bool) {
+    let is_ws = is_upgrade_response && is_websocket_response(&resp.headers);
     let extra = hop_by_hop::connection_tokens(&resp.headers, RESPONSE_HOP_BY_HOP);
 
     for name in RESPONSE_HOP_BY_HOP {
+        if hop_by_hop::preserve_for_upgrade(name, is_ws) {
+            continue;
+        }
         let _remove = resp.remove_header(*name);
     }
     for name in &extra {
         let _remove = resp.remove_header(name.as_str());
     }
+
+    if is_upgrade_response && !is_ws {
+        debug!("stripping non-WebSocket upgrade headers from 101 response");
+    }
+}
+
+/// Check whether the response's `Upgrade` header is `WebSocket`.
+fn is_websocket_response(headers: &http::HeaderMap) -> bool {
+    headers
+        .get("upgrade")
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(hop_by_hop::is_websocket_upgrade)
 }
 
 // -----------------------------------------------------------------------------
@@ -76,7 +100,7 @@ mod tests {
             ("content-type", "text/plain"),
         ]);
 
-        strip_hop_by_hop_response(&mut resp);
+        strip_hop_by_hop_response(&mut resp, false);
 
         assert!(
             resp.headers.get("connection").is_none(),
@@ -127,7 +151,7 @@ mod tests {
             ("x-safe", "keep"),
         ]);
 
-        strip_hop_by_hop_response(&mut resp);
+        strip_hop_by_hop_response(&mut resp, false);
 
         assert!(
             resp.headers.get("connection").is_none(),
@@ -152,7 +176,7 @@ mod tests {
     fn does_not_strip_proxy_authorization_from_response() {
         let mut resp = make_response(&[("proxy-authorization", "Bearer tok"), ("content-type", "text/plain")]);
 
-        strip_hop_by_hop_response(&mut resp);
+        strip_hop_by_hop_response(&mut resp, false);
 
         assert!(
             resp.headers.get("proxy-authorization").is_some(),
@@ -172,7 +196,7 @@ mod tests {
             ("date", "Wed, 01 Jan 2025 00:00:00 GMT"),
         ]);
 
-        strip_hop_by_hop_response(&mut resp);
+        strip_hop_by_hop_response(&mut resp, false);
 
         assert!(
             resp.headers.get("connection").is_none(),
@@ -214,7 +238,7 @@ mod tests {
     fn no_hop_by_hop_headers_is_noop() {
         let mut resp = make_response(&[("content-type", "text/html"), ("x-request-id", "abc-123")]);
 
-        strip_hop_by_hop_response(&mut resp);
+        strip_hop_by_hop_response(&mut resp, false);
 
         assert_eq!(
             resp.headers.get("content-type").unwrap(),
@@ -237,7 +261,7 @@ mod tests {
             ("x-c", "3"),
         ]);
 
-        strip_hop_by_hop_response(&mut resp);
+        strip_hop_by_hop_response(&mut resp, false);
 
         assert!(
             resp.headers.get("x-a").is_none(),
@@ -258,7 +282,7 @@ mod tests {
     fn connection_value_case_insensitive() {
         let mut resp = make_response(&[("connection", "X-MiXeD"), ("x-mixed", "stripped")]);
 
-        strip_hop_by_hop_response(&mut resp);
+        strip_hop_by_hop_response(&mut resp, false);
 
         assert!(
             resp.headers.get("x-mixed").is_none(),
@@ -270,7 +294,7 @@ mod tests {
     fn empty_connection_header_value() {
         let mut resp = make_response(&[("connection", ""), ("x-safe", "keep")]);
 
-        strip_hop_by_hop_response(&mut resp);
+        strip_hop_by_hop_response(&mut resp, false);
 
         assert!(
             resp.headers.get("connection").is_none(),
@@ -286,7 +310,98 @@ mod tests {
     #[test]
     fn empty_response_no_panic() {
         let mut resp = ResponseHeader::build(200, None).unwrap();
-        strip_hop_by_hop_response(&mut resp);
+        strip_hop_by_hop_response(&mut resp, false);
+    }
+
+    #[test]
+    fn upgrade_response_preserves_upgrade_and_connection() {
+        let mut resp = make_response(&[
+            ("upgrade", "websocket"),
+            ("connection", "Upgrade"),
+            ("sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="),
+            ("keep-alive", "300"),
+        ]);
+
+        strip_hop_by_hop_response(&mut resp, true);
+
+        assert_eq!(
+            resp.headers.get("upgrade").unwrap(),
+            "websocket",
+            "upgrade header should be preserved for 101 responses"
+        );
+        assert_eq!(
+            resp.headers.get("connection").unwrap(),
+            "Upgrade",
+            "connection header should be preserved for 101 responses"
+        );
+        assert_eq!(
+            resp.headers.get("sec-websocket-accept").unwrap(),
+            "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=",
+            "websocket headers should be preserved"
+        );
+        assert!(
+            resp.headers.get("keep-alive").is_none(),
+            "other hop-by-hop headers should still be stripped"
+        );
+    }
+
+    #[test]
+    fn non_upgrade_response_strips_upgrade_and_connection() {
+        let mut resp = make_response(&[("upgrade", "websocket"), ("connection", "Upgrade")]);
+
+        strip_hop_by_hop_response(&mut resp, false);
+
+        assert!(
+            resp.headers.get("upgrade").is_none(),
+            "upgrade should be stripped for non-upgrade responses"
+        );
+        assert!(
+            resp.headers.get("connection").is_none(),
+            "connection should be stripped for non-upgrade responses"
+        );
+    }
+
+    #[test]
+    fn h2c_upgrade_response_strips_headers() {
+        let mut resp = make_response(&[("upgrade", "h2c"), ("connection", "Upgrade")]);
+
+        strip_hop_by_hop_response(&mut resp, true);
+
+        assert!(
+            resp.headers.get("upgrade").is_none(),
+            "h2c upgrade header must be stripped from response to prevent smuggling"
+        );
+        assert!(
+            resp.headers.get("connection").is_none(),
+            "connection must be stripped for h2c upgrade responses"
+        );
+    }
+
+    #[test]
+    fn websocket_upgrade_response_preserves() {
+        let mut resp = make_response(&[
+            ("upgrade", "websocket"),
+            ("connection", "Upgrade"),
+            ("sec-websocket-accept", "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="),
+        ]);
+
+        strip_hop_by_hop_response(&mut resp, true);
+
+        assert_eq!(
+            resp.headers.get("upgrade").unwrap(),
+            "websocket",
+            "websocket upgrade should be preserved in response"
+        );
+        assert_eq!(
+            resp.headers.get("connection").unwrap(),
+            "Upgrade",
+            "connection should be preserved for websocket upgrade response"
+        );
+        assert_eq!(
+            resp.headers.get("sec-websocket-accept").unwrap(),
+            "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=",
+            "websocket accept header should be preserved"
+        );
     }
 
     // -------------------------------------------------------------------------

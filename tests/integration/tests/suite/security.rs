@@ -26,7 +26,6 @@ fn hop_by_hop_headers_stripped_before_upstream() {
          Host: localhost\r\n\
          Connection: keep-alive, X-Secret\r\n\
          Keep-Alive: timeout=300\r\n\
-         Upgrade: websocket\r\n\
          X-Secret: should-be-stripped\r\n\
          X-Safe: should-remain\r\n\
          Accept: text/html\r\n\
@@ -40,7 +39,6 @@ fn hop_by_hop_headers_stripped_before_upstream() {
         !body_lower.contains("keep-alive"),
         "Keep-Alive forwarded upstream: {body}"
     );
-    assert!(!body_lower.contains("upgrade"), "Upgrade forwarded upstream: {body}");
     assert!(
         !body_lower.contains("x-secret"),
         "Connection-declared header forwarded: {body}"

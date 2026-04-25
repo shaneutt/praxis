@@ -31,4 +31,5 @@ mod static_response;
 mod stream_buffer;
 mod timeout;
 mod virtual_hosts;
+mod websocket;
 mod weighted_load_balancing;

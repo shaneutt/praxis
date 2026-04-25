@@ -28,6 +28,10 @@ pub(super) async fn execute(
     end_of_stream: bool,
     ctx: &mut PingoraRequestCtx,
 ) -> Result<()> {
+    if ctx.connection_upgraded {
+        return Ok(());
+    }
+
     if let Some(ref mut chunks) = ctx.pre_read_body {
         tracing::trace!("forwarding pre-read body chunks from StreamBuffer mode");
 

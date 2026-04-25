@@ -105,7 +105,7 @@ fn multiple_connection_nominated_headers_all_stripped() {
 }
 
 #[test]
-fn hop_by_hop_upgrade_header_stripped() {
+fn hop_by_hop_upgrade_header_preserved_for_upgrade_requests() {
     let backend_guard = start_header_echo_backend_with_shutdown();
     let backend_port = backend_guard.port();
     let proxy_port = free_port();
@@ -124,8 +124,8 @@ fn hop_by_hop_upgrade_header_stripped() {
     let body_lower = body.to_lowercase();
 
     assert!(
-        !body_lower.contains("upgrade"),
-        "Upgrade hop-by-hop header should be stripped: {body}"
+        body_lower.contains("upgrade"),
+        "Upgrade header should be preserved for upgrade requests: {body}"
     );
     assert!(
         body_lower.contains("x-normal"),
@@ -286,5 +286,84 @@ filter_chains:
         parse_header(&raw, "x-safe-response"),
         Some("visible".to_owned()),
         "safe response header should be preserved"
+    );
+}
+
+#[test]
+fn multiple_upgrade_headers_handled_safely() {
+    let backend_guard = start_header_echo_backend_with_shutdown();
+    let proxy_port = free_port();
+    let yaml = simple_proxy_yaml(proxy_port, backend_guard.port());
+    let config = Config::from_yaml(&yaml).unwrap();
+    let proxy = start_proxy(&config);
+
+    let request = "GET / HTTP/1.1\r\n\
+         Host: localhost\r\n\
+         Upgrade: websocket\r\n\
+         Upgrade: h2c\r\n\
+         Connection: Upgrade\r\n\
+         Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+         \r\n";
+    let raw = http_send(proxy.addr(), request);
+    let status = parse_status(&raw);
+
+    assert!(
+        status == 200 || status == 400,
+        "multiple Upgrade headers should be handled safely (got {status})"
+    );
+}
+
+#[test]
+fn upgrade_with_transfer_encoding_chunked_handled_safely() {
+    let backend_guard = start_backend_with_shutdown("ok");
+    let proxy_port = free_port();
+    let yaml = simple_proxy_yaml(proxy_port, backend_guard.port());
+    let config = Config::from_yaml(&yaml).unwrap();
+    let proxy = start_proxy(&config);
+
+    let request = "GET / HTTP/1.1\r\n\
+         Host: localhost\r\n\
+         Upgrade: websocket\r\n\
+         Connection: Upgrade\r\n\
+         Transfer-Encoding: chunked\r\n\
+         Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+         \r\n\
+         0\r\n\
+         \r\n";
+    let raw = http_send(proxy.addr(), request);
+    let status = parse_status(&raw);
+
+    assert!(
+        status == 200 || status == 400 || raw.is_empty(),
+        "upgrade + Transfer-Encoding: chunked should not crash (got {status})"
+    );
+}
+
+#[test]
+fn upgrade_request_with_body_handled_safely() {
+    let backend_guard = start_backend_with_shutdown("ok");
+    let proxy_port = free_port();
+    let yaml = simple_proxy_yaml(proxy_port, backend_guard.port());
+    let config = Config::from_yaml(&yaml).unwrap();
+    let proxy = start_proxy(&config);
+
+    let body = "unexpected-body-content";
+    let request = format!(
+        "GET / HTTP/1.1\r\n\
+         Host: localhost\r\n\
+         Upgrade: websocket\r\n\
+         Connection: Upgrade\r\n\
+         Content-Length: {}\r\n\
+         Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\
+         \r\n\
+         {body}",
+        body.len()
+    );
+    let raw = http_send(proxy.addr(), &request);
+    let status = parse_status(&raw);
+
+    assert!(
+        status == 200 || status == 400 || raw.is_empty(),
+        "upgrade request with body should not crash (got {status})"
     );
 }

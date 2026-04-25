@@ -28,6 +28,10 @@ pub(super) fn execute(
     end_of_stream: bool,
     ctx: &mut PingoraRequestCtx,
 ) -> Result<Option<Duration>> {
+    if ctx.connection_upgraded {
+        return Ok(None);
+    }
+
     let caps = pipeline.body_capabilities();
 
     if !caps.needs_response_body {

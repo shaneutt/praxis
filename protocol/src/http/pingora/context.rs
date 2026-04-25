@@ -75,6 +75,13 @@ pub struct PingoraRequestCtx {
     /// Whether the response body has been released (`StreamBuffer` mode).
     pub response_body_released: bool,
 
+    /// Whether the connection was upgraded via 101 Switching Protocols.
+    ///
+    /// Set during `response_filter` when the upstream returns 101.
+    /// Body filter hooks skip processing when true, since post-upgrade
+    /// bytes are raw protocol frames (e.g. `WebSocket`), not HTTP bodies.
+    pub connection_upgraded: bool,
+
     /// Whether the response phase has been executed. Used to ensure
     /// cleanup (e.g. least-connections counter release) in the
     /// `logging()` hook when errors bypass `response_filter`.
@@ -205,6 +212,7 @@ impl Default for PingoraRequestCtx {
             client_addr: None,
             client_http_version: None,
             cluster: None,
+            connection_upgraded: false,
             pre_read_body: None,
             request_body_buffer: None,
             request_body_bytes: 0,

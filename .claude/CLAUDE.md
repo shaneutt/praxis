@@ -36,7 +36,7 @@ See `docs/architecture.md` for the full design.
 
 **Crate dependency flow:**
 
-```
+```console
 server -> protocol -> filter -> core -> tls
 ```
 
@@ -83,7 +83,15 @@ New capabilities require:
 1. Unit tests
 2. Integration tests
 3. Example config in `examples/configs/`
-4. Configuration test validating the example
+4. Functional integration test for the example config
+   in `tests/integration/tests/suite/examples/`
+
+Example config tests must exercise the actual
+functionality end-to-end (e.g. a WebSocket config
+must perform a real WebSocket handshake and message
+exchange). Parse-only validation is not sufficient;
+every example must prove its feature works with all
+configured variants.
 
 See `docs/conventions.md` for full test conventions
 (no inline comments in test bodies, no doc comments
@@ -142,7 +150,11 @@ Example configs: `examples/configs/<category>/`.
 See `docs/security-hardening.md` for details.
 
 Pingora handles: request smuggling prevention, H2
-backpressure, connection pool safety.
+backpressure, connection pool safety, HTTP/1.1
+upgrade detection and bidirectional forwarding
+(WebSocket, etc.).
 
-Praxis handles: hop-by-hop header stripping, Host
-validation, X-Forwarded-* injection, retry logic.
+Praxis handles: hop-by-hop header stripping (with
+conditional preservation for upgrade requests),
+Host validation, X-Forwarded-* injection, retry
+logic.

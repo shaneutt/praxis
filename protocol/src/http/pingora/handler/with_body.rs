@@ -139,14 +139,15 @@ impl ProxyHttp for PingoraHttpHandler {
 
     async fn upstream_request_filter(
         &self,
-        _session: &mut Session,
+        session: &mut Session,
         upstream_request: &mut pingora_http::RequestHeader,
         ctx: &mut Self::CTX,
     ) -> Result<()>
     where
         Self::CTX: Send + Sync,
     {
-        upstream_request::strip_hop_by_hop(upstream_request);
+        let is_upgrade = session.is_upgrade_req();
+        upstream_request::strip_hop_by_hop(upstream_request, is_upgrade);
         upstream_request::apply_rewritten_path(upstream_request, ctx);
         via::append_request_via(upstream_request, http::Version::HTTP_11);
         Ok(())
