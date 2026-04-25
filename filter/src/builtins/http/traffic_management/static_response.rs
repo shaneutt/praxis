@@ -19,7 +19,6 @@ use crate::{
 
 /// Deserialized YAML config for the static response filter.
 #[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 struct StaticResponseConfig {
     /// HTTP status code to return.
     status: u16,
