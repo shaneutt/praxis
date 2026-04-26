@@ -7,7 +7,7 @@
 [![MSRV: 1.94](https://img.shields.io/badge/MSRV-1.94-brightgreen.svg)](https://blog.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Praxis is a high performance and security-first proxy server and framework for AI and cloud-native workloads.
+Praxis is a high-performance and security-first proxy server and framework for AI and cloud-native workloads.
 
 ## Getting Started
 
@@ -25,7 +25,7 @@ Praxis is a high performance and security-first proxy server and framework for A
 
 ## Contributing
 
-Issues and pull requests are welcome. Familiarize yourself
+[Issues] and [pull requests] are welcome. Familiarize yourself
 with the following documentation first:
 
 - [Architecture](docs/architecture.md)
@@ -33,4 +33,10 @@ with the following documentation first:
 - [Development](docs/development.md)
 - [Benchmarks](docs/benchmarks.md)
 
-For larger changes, open an issue or discussion first.
+For larger changes open a [discussion] with a detailed description
+of what the change is so it can be discussed prior to a pull
+request.
+
+[Issues]:https://github.com/praxis-proxy/praxis/issues/new
+[pull requests]:https://github.com/praxis-proxy/praxis/compare
+[discussion]:https://github.com/praxis-proxy/praxis/discussions
