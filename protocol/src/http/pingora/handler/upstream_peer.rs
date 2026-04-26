@@ -5,7 +5,7 @@
 //!
 //! [`Upstream`]: praxis_core::connectivity::Upstream
 
-use std::sync::Arc;
+use std::{net::ToSocketAddrs, sync::Arc};
 
 use pingora_core::{Result, upstreams::peer::HttpPeer};
 use praxis_core::connectivity::Upstream;
@@ -49,13 +49,7 @@ pub(super) fn execute(ctx: &mut PingoraRequestCtx) -> Result<Box<HttpPeer>> {
 /// [`HttpPeer`]: pingora_core::upstreams::peer::HttpPeer
 /// [`CachedClusterTls`]: praxis_tls::CachedClusterTls
 fn build_peer(upstream: &Upstream) -> Result<Box<HttpPeer>> {
-    let addr: std::net::SocketAddr = upstream.address.parse().map_err(|e| {
-        tracing::warn!(address = %upstream.address, error = %e, "failed to parse upstream address");
-        pingora_core::Error::explain(
-            pingora_core::ErrorType::InternalError,
-            "upstream address resolution failed".to_owned(),
-        )
-    })?;
+    let addr: std::net::SocketAddr = resolve_address(&upstream.address)?;
 
     let tls_enabled = upstream.tls.is_some();
     let sni = upstream
@@ -129,6 +123,37 @@ fn derive_sni(address: &str) -> String {
     }
     tracing::debug!(address, sni = host, "derived SNI from upstream address");
     host.to_owned()
+}
+
+/// Resolve an upstream address to a [`SocketAddr`].
+///
+/// Tries direct [`SocketAddr`] parsing first. If that fails (e.g. the
+/// address contains a hostname like `api.openai.com:443`), falls back
+/// to [`ToSocketAddrs`] which performs DNS resolution.
+///
+/// [`SocketAddr`]: std::net::SocketAddr
+fn resolve_address(address: &str) -> Result<std::net::SocketAddr> {
+    if let Ok(addr) = address.parse::<std::net::SocketAddr>() {
+        return Ok(addr);
+    }
+
+    address
+        .to_socket_addrs()
+        .map_err(|e| {
+            tracing::warn!(address, error = %e, "failed to resolve upstream address");
+            pingora_core::Error::explain(
+                pingora_core::ErrorType::InternalError,
+                format!("upstream address resolution failed for '{address}': {e}"),
+            )
+        })?
+        .next()
+        .ok_or_else(|| {
+            tracing::warn!(address, "DNS resolved but returned no addresses");
+            pingora_core::Error::explain(
+                pingora_core::ErrorType::InternalError,
+                format!("upstream address '{address}' resolved to zero addresses"),
+            )
+        })
 }
 
 // -----------------------------------------------------------------------------
@@ -248,10 +273,38 @@ mod tests {
     }
 
     #[test]
+    fn resolve_address_parses_socket_addr() {
+        let addr = resolve_address("127.0.0.1:8080").expect("socket addr should parse");
+        assert_eq!(addr.port(), 8080, "port should match");
+    }
+
+    #[test]
+    fn resolve_address_resolves_localhost() {
+        let addr = resolve_address("localhost:8080").expect("localhost should resolve");
+        assert_eq!(addr.port(), 8080, "port should match");
+    }
+
+    #[test]
+    fn resolve_address_fails_for_no_port() {
+        assert!(
+            resolve_address("127.0.0.1").is_err(),
+            "address without port should return error"
+        );
+    }
+
+    #[test]
+    fn hostname_address_builds_peer() {
+        assert!(
+            build_peer(&make_upstream("localhost:8080")).is_ok(),
+            "hostname address should build peer via DNS resolution"
+        );
+    }
+
+    #[test]
     fn invalid_address_returns_error() {
         assert!(
-            build_peer(&make_upstream("not-an-address")).is_err(),
-            "invalid address should return error"
+            build_peer(&make_upstream("not-a-real-host.invalid:8080")).is_err(),
+            "unresolvable address should return error"
         );
     }
 
