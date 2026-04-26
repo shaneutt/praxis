@@ -1221,10 +1221,14 @@ dependencies = [
 name = "praxis-fuzz"
 version = "0.0.0"
 dependencies = [
+ "bytes",
+ "http",
  "libfuzzer-sys",
  "praxis-proxy-core",
  "praxis-proxy-filter",
  "praxis-proxy-tls",
+ "serde_yaml",
+ "tokio",
 ]
 
 [[package]]
