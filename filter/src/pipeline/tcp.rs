@@ -272,6 +272,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn disconnect_failure_mode_closed_propagates() {
+        let pipeline = make_tcp_pipeline(vec![Box::new(ErrorDisconnectTcpFilter)]);
+        let mut ctx = make_ctx();
+
+        let result = pipeline.execute_tcp_disconnect(&mut ctx).await;
+
+        assert!(
+            result.is_err(),
+            "closed (default) failure_mode should propagate disconnect error"
+        );
+    }
+
+    #[tokio::test]
+    async fn connect_mixed_chain_open_skipped_closed_blocks() {
+        let connects = Arc::new(AtomicUsize::new(0));
+        let disconnects = Arc::new(AtomicUsize::new(0));
+        let mut pipeline = make_tcp_pipeline(vec![
+            Box::new(ErrorTcpFilter),
+            Box::new(ErrorTcpFilter),
+            Box::new(CountingTcpFilter {
+                connects: Arc::clone(&connects),
+                disconnects: Arc::clone(&disconnects),
+            }),
+        ]);
+        pipeline.filters[0].failure_mode = FailureMode::Open;
+        let mut ctx = make_ctx();
+
+        let result = pipeline.execute_tcp_connect(&mut ctx).await;
+
+        assert!(
+            result.is_err(),
+            "open filter should be skipped but closed filter should block"
+        );
+        assert_eq!(
+            connects.load(Ordering::SeqCst),
+            0,
+            "third filter should not run after closed error"
+        );
+    }
+
+    #[tokio::test]
     async fn http_filters_skipped_in_tcp_execution() {
         let registry = FilterRegistry::with_builtins();
         let mut entries = vec![crate::FilterEntry {
