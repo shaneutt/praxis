@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use praxis_filter::{FilterEntry, FilterPipeline, FilterRegistry};
+use praxis_filter::{FailureMode, FilterEntry, FilterPipeline, FilterRegistry};
 
 fuzz_target!(|data: &str| {
     let registry = FilterRegistry::with_builtins();
@@ -21,6 +21,7 @@ fuzz_target!(|data: &str| {
                 conditions: vec![],
                 name: None,
                 response_conditions: vec![],
+                failure_mode: FailureMode::default(),
             })
         })
         .collect();
