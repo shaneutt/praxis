@@ -91,6 +91,8 @@ New capabilities require:
 3. Example config in `examples/configs/`
 4. Functional integration test for the example config
    in `tests/integration/tests/suite/examples/`
+5. Update `examples/README.md` to list any new or
+   renamed example configs
 
 Example config tests must exercise the actual
 functionality end-to-end (e.g. a WebSocket config

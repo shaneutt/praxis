@@ -81,8 +81,13 @@ page.
 | ------ | ------------- |
 | [tcp-proxy.yaml](configs/protocols/tcp-proxy.yaml) | L4 bidirectional TCP forwarding |
 | [tcp-timeouts.yaml](configs/protocols/tcp-timeouts.yaml) | TCP proxy with idle and max duration timeouts |
+| [tcp-consistent-hash.yaml](configs/protocols/tcp-consistent-hash.yaml) | TCP load balancing with consistent-hash client IP affinity |
+| [tcp-least-connections.yaml](configs/protocols/tcp-least-connections.yaml) | TCP load balancing via least-connections strategy |
+| [tcp-round-robin.yaml](configs/protocols/tcp-round-robin.yaml) | TCP round-robin load balancing across replicas |
 | [mixed-protocol.yaml](configs/protocols/mixed-protocol.yaml) | HTTP + TCP listeners on one server |
 | [tls-termination.yaml](configs/protocols/tls-termination.yaml) | HTTPS listener; plain HTTP to backends |
+| [tls-cipher-suites.yaml](configs/protocols/tls-cipher-suites.yaml) | Restrict accepted TLS cipher suites per listener |
+| [tls-sni-routing.yaml](configs/protocols/tls-sni-routing.yaml) | Route TLS connections by SNI hostname without termination |
 | [tcp-tls-mtls.yaml](configs/protocols/tcp-tls-mtls.yaml) | TCP proxy with mutual TLS |
 | [tcp-tls-termination.yaml](configs/protocols/tcp-tls-termination.yaml) | TCP proxy with TLS termination |
 | [tls-http-reencrypt.yaml](configs/protocols/tls-http-reencrypt.yaml) | TLS termination with re-encryption to upstream |
@@ -95,6 +100,7 @@ page.
 | [tls-version-constraint.yaml](configs/protocols/tls-version-constraint.yaml) | Minimum TLS version constraint |
 | [upstream-ca-file.yaml](configs/protocols/upstream-ca-file.yaml) | Global upstream CA file reference |
 | [upstream-tls.yaml](configs/protocols/upstream-tls.yaml) | Plain HTTP listener; TLS to upstream with SNI |
+| [websocket.yaml](configs/protocols/websocket.yaml) | Transparent WebSocket upgrade proxying over HTTP |
 
 ### Pipeline
 
@@ -103,12 +109,26 @@ page.
 | [default.yaml](../core/src/config/default.yaml) | Built-in default config (static JSON on /) |
 | [composed-chains.yaml](configs/pipeline/composed-chains.yaml) | Multiple named chains composed per listener |
 | [conditional-filters.yaml](configs/pipeline/conditional-filters.yaml) | when/unless conditions on request and response phase |
+| [branch-chains.yaml](configs/pipeline/branch-chains.yaml) | All branch chain scenarios in one config (six patterns) |
 
 ### AI / Inference
 
 | File | Description |
 | ------ | ------------- |
 | [model-to-header-routing.yaml](configs/ai/model-to-header-routing.yaml) | Route by model field in JSON body via X-Model header |
+
+### Branching
+
+| File | Description |
+| ------ | ------------- |
+| [unconditional-branch.yaml](configs/branching/unconditional-branch.yaml) | Always-fire branch for injecting side-effect chains |
+| [conditional-terminal.yaml](configs/branching/conditional-terminal.yaml) | Short-circuit the pipeline with a static response on result match |
+| [conditional-skip-to.yaml](configs/branching/conditional-skip-to.yaml) | Skip filters by jumping to a named rejoin point on result match |
+| [multiple-branches.yaml](configs/branching/multiple-branches.yaml) | Multiple branches on one filter with first-match-wins evaluation |
+| [named-chain-ref.yaml](configs/branching/named-chain-ref.yaml) | Reference a top-level chain by name instead of inline definition |
+| [nested-branches.yaml](configs/branching/nested-branches.yaml) | Multi-level decision tree with branches inside branches |
+| [reentrance.yaml](configs/branching/reentrance.yaml) | Loop back to a named filter with max_iterations cap |
+| [cross-chain-flat.yaml](configs/branching/cross-chain-flat.yaml) | Branch across concatenated chains via flat pipeline name index |
 
 ### Operations
 
@@ -118,4 +138,5 @@ page.
 | [multi-listener.yaml](configs/operations/multi-listener.yaml) | Multiple listeners sharing a filter chain |
 | [admin-interface.yaml](configs/operations/admin-interface.yaml) | Admin interface with health endpoints |
 | [container-default.yaml](configs/operations/container-default.yaml) | Default containerized deployment with public binding |
+| [max-connections.yaml](configs/operations/max-connections.yaml) | Per-listener connection limit with 503 rejection |
 | [log-overrides.yaml](configs/operations/log-overrides.yaml) | Per-module log level tuning via runtime config |
