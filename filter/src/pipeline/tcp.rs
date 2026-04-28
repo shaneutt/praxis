@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024 Shane Utt
+// Copyright (c) 2026 Praxis Contributors
 
 //! TCP pipeline execution: connect and disconnect filter phases.
 

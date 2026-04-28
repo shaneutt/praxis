@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024 Shane Utt
+// Copyright (c) 2026 Praxis Contributors
 
 //! [RFC 9110] HTTP Semantics conformance tests.
 //!

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024 Shane Utt
+// Copyright (c) 2026 Praxis Contributors
 
 //! Least-connections endpoint selection with in-flight tracking.
 

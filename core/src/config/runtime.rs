@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024 Shane Utt
+// Copyright (c) 2026 Praxis Contributors
 
 //! Runtime tuning: worker thread count, work-stealing toggle, logging overrides, and upstream CA.
 
