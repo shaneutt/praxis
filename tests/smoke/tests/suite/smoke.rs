@@ -68,6 +68,21 @@ filter_chains:
 
     assert_eq!(healthy_status, 200, "/healthy must return 200");
     assert_eq!(ready_status, 200, "/ready must return 200");
+
+    let proxy_addr = format!("127.0.0.1:{proxy_port}");
+    wait_for_tcp(&proxy_addr);
+    drop(http_get(&proxy_addr, "/", None));
+
+    let (metrics_status, metrics_body) = http_get(&admin_addr, "/metrics", None);
+    assert_eq!(metrics_status, 200, "/metrics must return 200");
+    assert!(
+        metrics_body.contains("praxis_http_requests_total"),
+        "/metrics must contain praxis_http_requests_total: {metrics_body}"
+    );
+    assert!(
+        metrics_body.contains("praxis_http_request_duration_seconds"),
+        "/metrics must contain praxis_http_request_duration_seconds: {metrics_body}"
+    );
 }
 
 #[test]

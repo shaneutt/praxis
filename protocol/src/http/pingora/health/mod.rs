@@ -10,4 +10,4 @@ pub mod runner;
 /// Admin health-check HTTP service (`/ready`, `/healthy`).
 mod service;
 
-pub use service::{PingoraHealthService, add_health_endpoint_to_pingora_server};
+pub use service::{PingoraHealthService, add_admin_endpoints_to_pingora_server, add_health_endpoint_to_pingora_server};

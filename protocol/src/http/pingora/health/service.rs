@@ -11,7 +11,7 @@ use pingora_core::{
 use praxis_core::health::HealthRegistry;
 use tracing::info;
 
-use crate::http::pingora::json::json_response;
+use crate::http::pingora::{json::json_response, metrics};
 
 // -----------------------------------------------------------------------------
 // JSON Escaping
@@ -132,29 +132,62 @@ impl PingoraHealthService {
     }
 }
 
-/// Add the health check endpoints to a Pingora server.
+/// Build an HTTP response containing Prometheus text exposition format.
 ///
-/// Binds a [`PingoraHealthService`] to `admin_addr`, exposing `/ready` and `/healthy` endpoints.
+/// Returns 200 with `text/plain; version=0.0.4` content type when the
+/// recorder is installed, or 503 if it has not been initialised.
+#[allow(clippy::expect_used, reason = "valid static response")]
+fn prometheus_response() -> Response<Vec<u8>> {
+    match metrics::render_prometheus() {
+        Some(body) => Response::builder()
+            .status(200)
+            .header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+            .body(body.into_bytes())
+            .expect("valid prometheus response"),
+        None => Response::builder()
+            .status(503)
+            .header("Content-Type", "text/plain")
+            .body(b"metrics recorder not installed\n".to_vec())
+            .expect("valid error response"),
+    }
+}
+
+/// Add the admin endpoints to a Pingora server.
+///
+/// Installs the global Prometheus metrics recorder and binds a
+/// [`PingoraHealthService`] to `admin_addr`, exposing `/ready`,
+/// `/healthy`, and `/metrics` endpoints.
 /// When `verbose` is `true`, `/ready` includes per-cluster detail.
 ///
 /// ```ignore
 /// use pingora_core::server::Server;
-/// use praxis_protocol::http::pingora::health::add_health_endpoint_to_pingora_server;
+/// use praxis_protocol::http::pingora::health::add_admin_endpoints_to_pingora_server;
 ///
 /// let mut server = Server::new(None).unwrap();
 /// server.bootstrap();
-/// add_health_endpoint_to_pingora_server(&mut server, "127.0.0.1:9090", None, false);
+/// add_admin_endpoints_to_pingora_server(&mut server, "127.0.0.1:9090", None, false);
 /// ```
+pub fn add_admin_endpoints_to_pingora_server(
+    server: &mut Server,
+    admin_addr: &str,
+    registry: Option<HealthRegistry>,
+    verbose: bool,
+) {
+    let _handle = metrics::install_prometheus_recorder();
+    let mut health_service = Service::new("health".to_owned(), PingoraHealthService::new(registry, verbose));
+    health_service.add_tcp(admin_addr);
+    info!(address = %admin_addr, verbose, "admin endpoints enabled (health + metrics)");
+    server.add_service(health_service);
+}
+
+/// Backward-compatible alias for [`add_admin_endpoints_to_pingora_server`].
 pub fn add_health_endpoint_to_pingora_server(
     server: &mut Server,
     admin_addr: &str,
     registry: Option<HealthRegistry>,
     verbose: bool,
 ) {
-    let mut health_service = Service::new("health".to_owned(), PingoraHealthService::new(registry, verbose));
-    health_service.add_tcp(admin_addr);
-    info!(address = %admin_addr, verbose, "health endpoints enabled");
-    server.add_service(health_service);
+    add_admin_endpoints_to_pingora_server(server, admin_addr, registry, verbose);
 }
 
 #[async_trait]
@@ -164,6 +197,7 @@ impl ServeHttp for PingoraHealthService {
 
         match path.as_str() {
             "/healthy" => json_response(200, br#"{"status":"ok"}"#),
+            "/metrics" => prometheus_response(),
             "/ready" => {
                 let (status, body) = self.ready_response();
                 json_response(status, body.as_bytes())
@@ -456,6 +490,25 @@ mod tests {
             escape_json_string("simple"),
             "simple",
             "plain string should pass through"
+        );
+    }
+
+    #[test]
+    fn prometheus_response_returns_200_with_valid_content_type() {
+        metrics::install_prometheus_recorder();
+        ::metrics::counter!("praxis_test_prometheus_response_total").increment(1);
+        let resp = prometheus_response();
+        assert_eq!(resp.status(), 200, "should be 200 when recorder is installed");
+        assert_eq!(
+            resp.headers()["Content-Type"],
+            "text/plain; version=0.0.4; charset=utf-8",
+            "content-type should be Prometheus text format"
+        );
+        let body = std::str::from_utf8(resp.body()).expect("prometheus body should be valid UTF-8");
+        assert!(!body.is_empty(), "prometheus body should not be empty");
+        assert!(
+            body.contains("praxis_test_prometheus_response_total"),
+            "prometheus body should contain recorded test metric: {body}"
         );
     }
 

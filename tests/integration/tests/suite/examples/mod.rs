@@ -8,6 +8,7 @@ mod test_utils;
 pub use test_utils::load_example_config;
 
 mod access_logging;
+mod admin_interface;
 mod api_key_filter;
 mod basic_reverse_proxy;
 mod canary_routing;

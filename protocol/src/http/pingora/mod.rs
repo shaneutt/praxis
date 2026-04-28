@@ -22,6 +22,8 @@ pub mod health;
 pub(crate) mod json;
 /// Listener configuration and TLS setup.
 pub mod listener;
+/// Prometheus metrics: recorder, HTTP request counters, and scrape endpoint.
+pub mod metrics;
 
 // -----------------------------------------------------------------------------
 // PingoraHttp
@@ -57,7 +59,7 @@ impl Protocol for PingoraHttp {
         }
 
         if let Some(admin_addr) = &config.admin.address {
-            health::add_health_endpoint_to_pingora_server(server.server_mut(), admin_addr, None, config.admin.verbose);
+            health::add_admin_endpoints_to_pingora_server(server.server_mut(), admin_addr, None, config.admin.verbose);
         }
 
         Ok(cert_watcher_shutdowns)

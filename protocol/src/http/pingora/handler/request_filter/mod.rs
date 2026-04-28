@@ -149,6 +149,7 @@ async fn run_pipeline(
     };
 
     ctx.request_snapshot = Some(request);
+    ctx.metrics_cluster = cluster.clone();
 
     match action {
         Ok(FilterAction::Continue | FilterAction::Release | FilterAction::BodyDone) => {

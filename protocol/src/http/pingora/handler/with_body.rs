@@ -19,8 +19,8 @@ use tokio::sync::Semaphore;
 use tracing::{debug, warn};
 
 use super::{
-    adjust_compression, handle_connect_failure, logging_cleanup, record_passive_health, request_body_filter,
-    request_filter, response_body_filter, response_filter, upstream_peer, upstream_request, via,
+    adjust_compression, emit_request_metrics, handle_connect_failure, logging_cleanup, record_passive_health,
+    request_body_filter, request_filter, response_body_filter, response_filter, upstream_peer, upstream_request, via,
 };
 use crate::http::pingora::context::PingoraRequestCtx;
 
@@ -217,8 +217,9 @@ impl ProxyHttp for PingoraHttpHandler {
         upstream_peer::execute(ctx)
     }
 
-    async fn logging(&self, _session: &mut Session, e: Option<&pingora_core::Error>, ctx: &mut Self::CTX) {
+    async fn logging(&self, session: &mut Session, e: Option<&pingora_core::Error>, ctx: &mut Self::CTX) {
         let pipeline = self.pipeline.load();
+        emit_request_metrics(session, ctx);
         record_passive_health(&pipeline, e, ctx);
         logging_cleanup(&pipeline, ctx).await;
     }
