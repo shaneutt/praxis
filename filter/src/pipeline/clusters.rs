@@ -68,7 +68,7 @@ pub(super) fn extract_lb_clusters(entries: &[FilterEntry]) -> HashSet<String> {
     reason = "tests"
 )]
 mod tests {
-    use praxis_core::config::FilterEntry;
+    use praxis_core::config::{FailureMode, FilterEntry};
 
     use super::*;
 
@@ -160,6 +160,7 @@ mod tests {
         FilterEntry {
             branch_chains: None,
             conditions: vec![],
+            failure_mode: FailureMode::default(),
             filter_type: filter_type.to_owned(),
             config: serde_yaml::from_str(yaml).expect("valid test YAML"),
             name: None,

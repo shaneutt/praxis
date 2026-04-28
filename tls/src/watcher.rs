@@ -133,10 +133,8 @@ async fn watch_loop(
 /// [`RecommendedWatcher`]: notify::RecommendedWatcher
 fn setup_watcher(tx: mpsc::Sender<()>, cert_dir: &Path, key_dir: &Path) -> Result<RecommendedWatcher, notify::Error> {
     let mut watcher = notify::recommended_watcher(move |res: Result<notify::Event, notify::Error>| match res {
-        Ok(event) if is_relevant_event(event.kind) => {
-            if tx.try_send(()).is_err() {
-                tracing::trace!("cert watcher channel full, event coalesced by debounce");
-            }
+        Ok(event) if is_relevant_event(event.kind) && tx.try_send(()).is_err() => {
+            tracing::trace!("cert watcher channel full, event coalesced by debounce");
         },
         Err(e) => {
             tracing::warn!(error = %e, "file watcher error");

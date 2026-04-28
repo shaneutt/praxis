@@ -236,7 +236,7 @@ fn has_allow_rewrite_override(entries: &[FilterEntry], idx: usize) -> bool {
     reason = "tests"
 )]
 mod tests {
-    use praxis_core::config::{Condition, ConditionMatch, FilterEntry};
+    use praxis_core::config::{Condition, ConditionMatch, FailureMode, FilterEntry};
 
     use super::*;
     use crate::any_filter::AnyFilter;
@@ -483,6 +483,7 @@ mod tests {
         PipelineFilter {
             branches: vec![],
             conditions,
+            failure_mode: FailureMode::default(),
             filter: AnyFilter::Http(Box::new(NoopFilter)),
             name: None,
             response_conditions: vec![],
@@ -504,6 +505,7 @@ mod tests {
         FilterEntry {
             branch_chains: None,
             conditions: vec![],
+            failure_mode: FailureMode::default(),
             filter_type: filter_type.to_owned(),
             config: serde_yaml::from_str(yaml).expect("valid test YAML"),
             name: None,
