@@ -250,13 +250,10 @@ flowchart TD
     Proto --> |"on Release or EOS: forward buffer"| Upstream
 ```
 
-Three delivery modes:
+Two delivery modes:
 
 - **Stream**: chunks flow through filters as they arrive.
   Low latency, low memory.
-- **Buffer**: the protocol layer accumulates chunks into a
-  `BodyBuffer`, then delivers the full body in a single
-  call. Required when any filter needs the complete body.
 - **StreamBuffer**: chunks are delivered to filters
   incrementally (like Stream) but accumulated in a buffer
   and not forwarded to upstream until a filter returns
@@ -275,10 +272,9 @@ routing decisions. The pre-read body is stored and
 forwarded to the upstream after the connection is
 established.
 
-Precedence: `Buffer` > `StreamBuffer` > `Stream`. If any
-filter requests `Buffer`, the entire pipeline buffers. If
-any filter requests `StreamBuffer` (and none requests
-`Buffer`), the pipeline uses stream-buffered mode.
+Precedence: `StreamBuffer` > `SizeLimit` > `Stream`. If
+any filter requests `StreamBuffer`, the pipeline uses
+stream-buffered mode.
 Global `body_limits.max_request_bytes` / `body_limits.max_response_bytes`
 config limits force buffer mode for size enforcement even
 when no filter requests body access.
@@ -411,7 +407,7 @@ praxis-filter                   Filter pipeline engine
 │   ├── access                  BodyAccess enum
 │   ├── buffer                  BodyBuffer and overflow handling
 │   ├── builder                 Pre-computed BodyCapabilities
-│   └── mode                    BodyMode enum (Stream, Buffer, StreamBuffer)
+│   └── mode                    BodyMode enum (Stream, StreamBuffer, SizeLimit)
 ├── condition/                  Condition evaluation for filter gating
 │   ├── request                 Request condition evaluation
 │   └── response                Response condition evaluation

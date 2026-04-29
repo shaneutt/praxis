@@ -69,6 +69,8 @@ pub(in crate::http) async fn execute(
     );
 
     let caps = pipeline.body_capabilities();
+    ctx.request_body_mode = caps.request_body_mode;
+    ctx.response_body_mode = caps.response_body_mode;
 
     if matches!(caps.request_body_mode, BodyMode::StreamBuffer { .. }) {
         tracing::debug!("pre-reading request body for StreamBuffer inspection");
@@ -131,7 +133,7 @@ async fn run_pipeline(
     request: Request,
     ctx: &mut PingoraRequestCtx,
 ) -> std::result::Result<(FilterAction, Vec<(Cow<'static, str>, String)>), FilterError> {
-    let (action, extra_headers, cluster, upstream, rewritten_path) = {
+    let (action, extra_headers, cluster, upstream, rewritten_path, request_body_mode) = {
         let mut filter_ctx = ctx.build_filter_context(pipeline, &request, None);
 
         let action = pipeline.execute_http_request(&mut filter_ctx).await;
@@ -141,6 +143,7 @@ async fn run_pipeline(
             filter_ctx.cluster,
             filter_ctx.upstream,
             filter_ctx.rewritten_path,
+            filter_ctx.request_body_mode,
         )
     };
 
@@ -151,6 +154,7 @@ async fn run_pipeline(
             ctx.cluster = cluster;
             ctx.upstream = upstream;
             ctx.rewritten_path = rewritten_path;
+            ctx.request_body_mode = request_body_mode;
             Ok((FilterAction::Continue, extra_headers))
         },
         Ok(FilterAction::Reject(rejection)) => Ok((FilterAction::Reject(rejection), Vec::new())),

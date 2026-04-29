@@ -3,7 +3,7 @@
 
 //! Filter pipeline: ordered chain of filters executed on each request.
 
-mod body;
+pub(crate) mod body;
 pub(crate) mod branch;
 mod build;
 mod build_branch;
@@ -25,6 +25,7 @@ mod tcp;
     clippy::type_complexity,
     clippy::too_many_lines,
     clippy::redundant_closure_for_method_calls,
+    clippy::significant_drop_tightening,
     clippy::doc_markdown,
     reason = "tests"
 )]
@@ -72,7 +73,7 @@ impl FilterPipeline {
     ///
     /// When no filter requires body access (mode is [`Stream`]),
     /// uses [`SizeLimit`] to enforce the ceiling without
-    /// buffering. When a filter already requested [`Buffer`] or
+    /// buffering. When a filter already requested
     /// [`StreamBuffer`], the ceiling tightens the existing limit.
     ///
     /// # Errors
@@ -82,7 +83,6 @@ impl FilterPipeline {
     ///
     /// [`Stream`]: BodyMode::Stream
     /// [`SizeLimit`]: BodyMode::SizeLimit
-    /// [`Buffer`]: BodyMode::Buffer
     /// [`StreamBuffer`]: BodyMode::StreamBuffer
     pub fn apply_body_limits(
         &mut self,
@@ -151,9 +151,6 @@ impl FilterPipeline {
 /// Tighten a body mode's size limit to the given ceiling.
 fn clamp_body_mode(mode: BodyMode, ceiling: usize) -> BodyMode {
     match mode {
-        BodyMode::Buffer { max_bytes } => BodyMode::Buffer {
-            max_bytes: max_bytes.min(ceiling),
-        },
         BodyMode::StreamBuffer { max_bytes } => BodyMode::StreamBuffer {
             max_bytes: Some(max_bytes.map_or(ceiling, |m| m.min(ceiling))),
         },

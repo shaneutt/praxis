@@ -90,15 +90,15 @@ impl Rejection {
         }
     }
 
-    /// Add a header to the rejection response.
-    pub fn with_header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
-        self.headers.push((name.into(), value.into()));
-        self
-    }
-
     /// Set the body of the rejection response.
     pub fn with_body(mut self, body: impl Into<Bytes>) -> Self {
         self.body = Some(body.into());
+        self
+    }
+
+    /// Add a header to the rejection response.
+    pub fn with_header(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.headers.push((name.into(), value.into()));
         self
     }
 }

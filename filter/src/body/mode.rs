@@ -15,8 +15,15 @@
 /// let mode = BodyMode::default();
 /// assert!(matches!(mode, BodyMode::Stream));
 ///
-/// let buffered = BodyMode::Buffer { max_bytes: 1024 };
-/// assert!(matches!(buffered, BodyMode::Buffer { max_bytes: 1024 }));
+/// let buffered = BodyMode::StreamBuffer {
+///     max_bytes: Some(1024),
+/// };
+/// assert!(matches!(
+///     buffered,
+///     BodyMode::StreamBuffer {
+///         max_bytes: Some(1024)
+///     }
+/// ));
 ///
 /// let stream_buf = BodyMode::StreamBuffer { max_bytes: None };
 /// assert!(matches!(
@@ -41,6 +48,7 @@
 /// ));
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum BodyMode {
     /// Deliver chunks as they arrive. Low latency, low memory.
     ///
@@ -52,19 +60,6 @@ pub enum BodyMode {
     /// ```
     #[default]
     Stream,
-
-    /// Buffer the entire body, then deliver it in a single call.
-    ///
-    /// ```
-    /// use praxis_filter::BodyMode;
-    ///
-    /// let mode = BodyMode::Buffer { max_bytes: 8192 };
-    /// assert!(matches!(mode, BodyMode::Buffer { max_bytes: 8192 }));
-    /// ```
-    Buffer {
-        /// Maximum body size in bytes.
-        max_bytes: usize,
-    },
 
     /// Deliver chunks incrementally (like [`Stream`]) but accumulate
     /// them and defer upstream forwarding until a filter returns
@@ -142,16 +137,6 @@ mod tests {
     }
 
     #[test]
-    fn body_mode_buffer_carries_limit() {
-        let mode = BodyMode::Buffer { max_bytes: 4096 };
-
-        assert!(
-            matches!(mode, BodyMode::Buffer { max_bytes: 4096 }),
-            "Buffer variant should carry configured limit"
-        );
-    }
-
-    #[test]
     fn body_mode_stream_buffer_unlimited() {
         let mode = BodyMode::StreamBuffer { max_bytes: None };
         assert!(
@@ -179,21 +164,16 @@ mod tests {
     }
 
     #[test]
-    fn body_mode_size_limit_is_distinct_from_buffer() {
+    fn body_mode_size_limit_is_distinct_from_stream_buffer() {
         assert_ne!(
             BodyMode::SizeLimit { max_bytes: 100 },
-            BodyMode::Buffer { max_bytes: 100 },
-            "SizeLimit and Buffer should be distinct even with same limit"
+            BodyMode::StreamBuffer { max_bytes: Some(100) },
+            "SizeLimit and StreamBuffer should be distinct even with same limit"
         );
     }
 
     #[test]
-    fn body_mode_stream_buffer_is_distinct() {
-        assert_ne!(
-            BodyMode::StreamBuffer { max_bytes: None },
-            BodyMode::Buffer { max_bytes: 100 },
-            "StreamBuffer and Buffer should be distinct variants"
-        );
+    fn body_mode_stream_buffer_is_distinct_from_stream() {
         assert_ne!(
             BodyMode::StreamBuffer { max_bytes: None },
             BodyMode::Stream,

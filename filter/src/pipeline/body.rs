@@ -26,29 +26,18 @@ pub(super) fn merge_optional_limits(a: Option<usize>, b: Option<usize>) -> Optio
 
 /// Merge a filter's body mode into the current accumulated mode.
 ///
-/// Precedence: `Buffer` > `StreamBuffer` > `SizeLimit` > `Stream`.
+/// Precedence: `StreamBuffer` > `SizeLimit` > `Stream`.
 /// When two modes of the same variant merge, the stricter (smaller)
 /// limit wins. `SizeLimit` is treated as equivalent to `Stream`
 /// from a filter perspective (filters never request it directly).
 pub(crate) fn merge_body_mode(current: &mut BodyMode, filter_mode: BodyMode) {
     match filter_mode {
-        BodyMode::Buffer { max_bytes } => {
-            *current = match *current {
-                BodyMode::Stream | BodyMode::SizeLimit { .. } | BodyMode::StreamBuffer { .. } => {
-                    BodyMode::Buffer { max_bytes }
-                },
-                BodyMode::Buffer { max_bytes: existing } => BodyMode::Buffer {
-                    max_bytes: existing.min(max_bytes),
-                },
-            };
-        },
         BodyMode::StreamBuffer { max_bytes } => {
             *current = match *current {
                 BodyMode::Stream | BodyMode::SizeLimit { .. } => BodyMode::StreamBuffer { max_bytes },
                 BodyMode::StreamBuffer { max_bytes: existing } => BodyMode::StreamBuffer {
                     max_bytes: merge_optional_limits(existing, max_bytes),
                 },
-                BodyMode::Buffer { .. } => *current,
             };
         },
         BodyMode::SizeLimit { .. } | BodyMode::Stream => {},
@@ -145,50 +134,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn merge_body_mode_buffer_wins_over_stream() {
-        let mut mode = BodyMode::Stream;
-        merge_body_mode(&mut mode, BodyMode::Buffer { max_bytes: 1024 });
-        assert_eq!(
-            mode,
-            BodyMode::Buffer { max_bytes: 1024 },
-            "Buffer should replace Stream"
-        );
-    }
-
-    #[test]
-    fn merge_body_mode_buffer_wins_over_stream_buffer() {
-        let mut mode = BodyMode::StreamBuffer { max_bytes: Some(2048) };
-        merge_body_mode(&mut mode, BodyMode::Buffer { max_bytes: 4096 });
-        assert_eq!(
-            mode,
-            BodyMode::Buffer { max_bytes: 4096 },
-            "Buffer should replace StreamBuffer"
-        );
-    }
-
-    #[test]
-    fn merge_body_mode_buffer_keeps_smaller_limit() {
-        let mut mode = BodyMode::Buffer { max_bytes: 2048 };
-        merge_body_mode(&mut mode, BodyMode::Buffer { max_bytes: 1024 });
-        assert_eq!(
-            mode,
-            BodyMode::Buffer { max_bytes: 1024 },
-            "smaller Buffer limit should win"
-        );
-    }
-
-    #[test]
-    fn merge_body_mode_buffer_keeps_existing_when_larger() {
-        let mut mode = BodyMode::Buffer { max_bytes: 512 };
-        merge_body_mode(&mut mode, BodyMode::Buffer { max_bytes: 4096 });
-        assert_eq!(
-            mode,
-            BodyMode::Buffer { max_bytes: 512 },
-            "existing smaller Buffer limit should be kept"
-        );
-    }
-
-    #[test]
     fn merge_body_mode_stream_buffer_wins_over_stream() {
         let mut mode = BodyMode::Stream;
         merge_body_mode(&mut mode, BodyMode::StreamBuffer { max_bytes: Some(1024) });
@@ -207,17 +152,6 @@ mod tests {
             mode,
             BodyMode::StreamBuffer { max_bytes: Some(2048) },
             "StreamBuffer should replace SizeLimit"
-        );
-    }
-
-    #[test]
-    fn merge_body_mode_buffer_wins_over_size_limit() {
-        let mut mode = BodyMode::SizeLimit { max_bytes: 4096 };
-        merge_body_mode(&mut mode, BodyMode::Buffer { max_bytes: 2048 });
-        assert_eq!(
-            mode,
-            BodyMode::Buffer { max_bytes: 2048 },
-            "Buffer should replace SizeLimit"
         );
     }
 
@@ -255,23 +189,12 @@ mod tests {
     }
 
     #[test]
-    fn merge_body_mode_stream_buffer_does_not_replace_buffer() {
-        let mut mode = BodyMode::Buffer { max_bytes: 2048 };
-        merge_body_mode(&mut mode, BodyMode::StreamBuffer { max_bytes: Some(1024) });
-        assert_eq!(
-            mode,
-            BodyMode::Buffer { max_bytes: 2048 },
-            "StreamBuffer should not downgrade Buffer"
-        );
-    }
-
-    #[test]
     fn merge_body_mode_stream_is_noop() {
-        let mut mode = BodyMode::Buffer { max_bytes: 1024 };
+        let mut mode = BodyMode::StreamBuffer { max_bytes: Some(1024) };
         merge_body_mode(&mut mode, BodyMode::Stream);
         assert_eq!(
             mode,
-            BodyMode::Buffer { max_bytes: 1024 },
+            BodyMode::StreamBuffer { max_bytes: Some(1024) },
             "Stream should not change existing mode"
         );
     }
@@ -378,7 +301,7 @@ mod tests {
             }
 
             fn request_body_mode(&self) -> BodyMode {
-                BodyMode::Buffer { max_bytes: 4096 }
+                BodyMode::StreamBuffer { max_bytes: Some(4096) }
             }
 
             async fn on_request_body(
@@ -425,8 +348,8 @@ mod tests {
         );
         assert_eq!(
             caps.request_body_mode,
-            BodyMode::Buffer { max_bytes: 4096 },
-            "Buffer mode from branch filter should propagate"
+            BodyMode::StreamBuffer { max_bytes: Some(4096) },
+            "StreamBuffer mode from branch filter should propagate"
         );
     }
 

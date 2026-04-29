@@ -336,15 +336,21 @@ impl HttpFilter for ResponseBodyRejectFilter {
     }
 
     fn response_body_mode(&self) -> BodyMode {
-        BodyMode::Buffer { max_bytes: 1_048_576 } // 1 MiB
+        BodyMode::StreamBuffer {
+            max_bytes: Some(1_048_576),
+        }
     }
 
     fn on_response_body(
         &self,
         _ctx: &mut HttpFilterContext<'_>,
         body: &mut Option<Bytes>,
-        _end_of_stream: bool,
+        end_of_stream: bool,
     ) -> Result<FilterAction, FilterError> {
+        if !end_of_stream {
+            return Ok(FilterAction::Continue);
+        }
+
         if let Some(b) = body
             && b.windows(9).any(|w| w == b"FORBIDDEN")
         {
@@ -356,19 +362,22 @@ impl HttpFilter for ResponseBodyRejectFilter {
 }
 
 /// A filter that uppercases request body chunks.
-/// When constructed with a `Buffer` mode it buffers the full body first.
+/// When constructed with a buffer limit it upgrades the per-request
+/// body mode to StreamBuffer during `on_request` (Option B), so
+/// the body is buffered inline rather than via the pre-read path.
 struct BodyUppercaseFilter {
-    mode: BodyMode,
+    /// Per-request StreamBuffer limit, or `None` for pure streaming.
+    buffer_limit: Option<usize>,
 }
 
 impl BodyUppercaseFilter {
     fn streaming() -> Self {
-        Self { mode: BodyMode::Stream }
+        Self { buffer_limit: None }
     }
 
     fn buffered(max_bytes: usize) -> Self {
         Self {
-            mode: BodyMode::Buffer { max_bytes },
+            buffer_limit: Some(max_bytes),
         }
     }
 }
@@ -379,7 +388,10 @@ impl HttpFilter for BodyUppercaseFilter {
         "body_uppercase"
     }
 
-    async fn on_request(&self, _ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+    async fn on_request(&self, ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+        if let Some(limit) = self.buffer_limit {
+            ctx.set_request_body_mode(BodyMode::StreamBuffer { max_bytes: Some(limit) });
+        }
         Ok(FilterAction::Continue)
     }
 
@@ -387,16 +399,15 @@ impl HttpFilter for BodyUppercaseFilter {
         BodyAccess::ReadWrite
     }
 
-    fn request_body_mode(&self) -> BodyMode {
-        self.mode
-    }
-
     async fn on_request_body(
         &self,
         _ctx: &mut HttpFilterContext<'_>,
         body: &mut Option<Bytes>,
-        _end_of_stream: bool,
+        end_of_stream: bool,
     ) -> Result<FilterAction, FilterError> {
+        if self.buffer_limit.is_some() && !end_of_stream {
+            return Ok(FilterAction::Continue);
+        }
         if let Some(b) = body {
             let upper: Vec<u8> = b.iter().map(|c| c.to_ascii_uppercase()).collect();
             *b = Bytes::from(upper);
@@ -406,7 +417,7 @@ impl HttpFilter for BodyUppercaseFilter {
     }
 }
 
-/// A filter with a 5-byte buffer limit, used to test 413 rejection.
+/// A filter with a 5-byte StreamBuffer limit, used to test 413 rejection.
 struct TinyBufferFilter;
 
 #[async_trait::async_trait]
@@ -415,7 +426,8 @@ impl HttpFilter for TinyBufferFilter {
         "body_tiny_buffer"
     }
 
-    async fn on_request(&self, _ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+    async fn on_request(&self, ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+        ctx.set_request_body_mode(BodyMode::StreamBuffer { max_bytes: Some(5) });
         Ok(FilterAction::Continue)
     }
 
@@ -423,16 +435,15 @@ impl HttpFilter for TinyBufferFilter {
         BodyAccess::ReadOnly
     }
 
-    fn request_body_mode(&self) -> BodyMode {
-        BodyMode::Buffer { max_bytes: 5 }
-    }
-
     async fn on_request_body(
         &self,
         _ctx: &mut HttpFilterContext<'_>,
         _body: &mut Option<Bytes>,
-        _end_of_stream: bool,
+        end_of_stream: bool,
     ) -> Result<FilterAction, FilterError> {
+        if !end_of_stream {
+            return Ok(FilterAction::Continue);
+        }
         Ok(FilterAction::Continue)
     }
 }
@@ -609,15 +620,20 @@ impl HttpFilter for ResponseBodyLimitCheckFilter {
     }
 
     fn response_body_mode(&self) -> BodyMode {
-        BodyMode::Buffer { max_bytes: 1_048_576 }
+        BodyMode::StreamBuffer {
+            max_bytes: Some(1_048_576),
+        }
     }
 
     fn on_response_body(
         &self,
         _ctx: &mut HttpFilterContext<'_>,
         body: &mut Option<Bytes>,
-        _end_of_stream: bool,
+        end_of_stream: bool,
     ) -> Result<FilterAction, FilterError> {
+        if !end_of_stream {
+            return Ok(FilterAction::Continue);
+        }
         if let Some(b) = body
             && b.len() > 64
         {

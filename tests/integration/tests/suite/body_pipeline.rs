@@ -380,7 +380,7 @@ fn stream_registry() -> FilterRegistry {
     registry
 }
 
-/// Build a registry with three buffer-mode filters.
+/// Build a registry with three StreamBuffer-mode filters.
 fn buffer_registry() -> FilterRegistry {
     let mut registry = FilterRegistry::with_builtins();
     registry
@@ -602,10 +602,10 @@ impl HttpFilter for StreamRejectBlockedFilter {
 }
 
 // -----------------------------------------------------------------------------
-// Buffer Mode Filters
+// StreamBuffer Mode Filters
 // -----------------------------------------------------------------------------
 
-/// Rejects buffered body containing "BLOCKED" with a 128-byte limit.
+/// Rejects stream-buffered body containing "BLOCKED" with a 128-byte limit.
 struct BufferRejectBlockedFilter;
 
 #[async_trait::async_trait]
@@ -614,7 +614,8 @@ impl HttpFilter for BufferRejectBlockedFilter {
         "buffer_reject_blocked"
     }
 
-    async fn on_request(&self, _ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+    async fn on_request(&self, ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+        ctx.set_request_body_mode(BodyMode::StreamBuffer { max_bytes: Some(128) });
         Ok(FilterAction::Continue)
     }
 
@@ -622,16 +623,15 @@ impl HttpFilter for BufferRejectBlockedFilter {
         BodyAccess::ReadOnly
     }
 
-    fn request_body_mode(&self) -> BodyMode {
-        BodyMode::Buffer { max_bytes: 128 }
-    }
-
     async fn on_request_body(
         &self,
         _ctx: &mut HttpFilterContext<'_>,
         body: &mut Option<Bytes>,
-        _end_of_stream: bool,
+        end_of_stream: bool,
     ) -> Result<FilterAction, FilterError> {
+        if !end_of_stream {
+            return Ok(FilterAction::Continue);
+        }
         if let Some(b) = body
             && b.windows(7).any(|w| w == b"BLOCKED")
         {
@@ -641,7 +641,7 @@ impl HttpFilter for BufferRejectBlockedFilter {
     }
 }
 
-/// Uppercases the complete buffered body.
+/// Uppercases the complete stream-buffered body.
 struct BufferUppercaseFilter;
 
 #[async_trait::async_trait]
@@ -650,7 +650,8 @@ impl HttpFilter for BufferUppercaseFilter {
         "buffer_uppercase"
     }
 
-    async fn on_request(&self, _ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+    async fn on_request(&self, ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+        ctx.set_request_body_mode(BodyMode::StreamBuffer { max_bytes: Some(128) });
         Ok(FilterAction::Continue)
     }
 
@@ -658,16 +659,15 @@ impl HttpFilter for BufferUppercaseFilter {
         BodyAccess::ReadWrite
     }
 
-    fn request_body_mode(&self) -> BodyMode {
-        BodyMode::Buffer { max_bytes: 128 }
-    }
-
     async fn on_request_body(
         &self,
         _ctx: &mut HttpFilterContext<'_>,
         body: &mut Option<Bytes>,
-        _end_of_stream: bool,
+        end_of_stream: bool,
     ) -> Result<FilterAction, FilterError> {
+        if !end_of_stream {
+            return Ok(FilterAction::Continue);
+        }
         if let Some(b) = body {
             let upper: Vec<u8> = b.iter().map(|c| c.to_ascii_uppercase()).collect();
             *b = Bytes::from(upper);
@@ -676,7 +676,7 @@ impl HttpFilter for BufferUppercaseFilter {
     }
 }
 
-/// Read-only body scanner in buffer mode; third filter in chain.
+/// Read-only body scanner in StreamBuffer mode; third filter in chain.
 struct BufferScannerFilter;
 
 #[async_trait::async_trait]
@@ -685,7 +685,8 @@ impl HttpFilter for BufferScannerFilter {
         "buffer_scanner"
     }
 
-    async fn on_request(&self, _ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+    async fn on_request(&self, ctx: &mut HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+        ctx.set_request_body_mode(BodyMode::StreamBuffer { max_bytes: Some(128) });
         Ok(FilterAction::Continue)
     }
 
@@ -693,16 +694,15 @@ impl HttpFilter for BufferScannerFilter {
         BodyAccess::ReadOnly
     }
 
-    fn request_body_mode(&self) -> BodyMode {
-        BodyMode::Buffer { max_bytes: 128 }
-    }
-
     async fn on_request_body(
         &self,
         _ctx: &mut HttpFilterContext<'_>,
         _body: &mut Option<Bytes>,
-        _end_of_stream: bool,
+        end_of_stream: bool,
     ) -> Result<FilterAction, FilterError> {
+        if !end_of_stream {
+            return Ok(FilterAction::Continue);
+        }
         Ok(FilterAction::Continue)
     }
 }

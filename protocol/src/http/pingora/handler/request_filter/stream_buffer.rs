@@ -76,7 +76,11 @@ pub(super) enum PreReadError {
 /// `json_body_field` extracting a model name). The accumulated body
 /// is stored in `ctx.pre_read_body` for later forwarding by
 /// `request_body_filter`.
-#[allow(clippy::too_many_lines, reason = "buffer management orchestration")]
+#[allow(
+    clippy::too_many_lines,
+    unused_assignments,
+    reason = "buffer management orchestration"
+)]
 pub(super) async fn pre_read_body(
     pipeline: &FilterPipeline,
     session: &mut Session,
@@ -106,6 +110,7 @@ pub(super) async fn pre_read_body(
     let mut buffer = BodyBuffer::new(max_bytes);
     let mut all_extra_headers = Vec::new();
     let mut released = false;
+    let mut eos_body = None;
 
     loop {
         let chunk = session
@@ -122,6 +127,13 @@ pub(super) async fn pre_read_body(
             && buffer.push(b.clone()).is_err()
         {
             return Err(PreReadError::Rejected(Rejection::status(413)));
+        }
+
+        // At EOS, deliver the accumulated body to filters so they
+        // can inspect or transform the complete payload.
+        if end_of_stream && !released {
+            body = Some(buffer.freeze());
+            buffer = BodyBuffer::new(max_bytes);
         }
 
         let mut filter_ctx = ctx.build_filter_context(pipeline, request, None);
@@ -149,16 +161,17 @@ pub(super) async fn pre_read_body(
         }
 
         if end_of_stream {
+            eos_body = body;
             break;
         }
     }
 
     tracing::debug!("storing pre-read body for forwarding by request_body_filter");
-    let frozen = buffer.freeze();
-    if frozen.is_empty() {
+    let forwarded = eos_body.unwrap_or_else(|| buffer.freeze());
+    if forwarded.is_empty() {
         ctx.pre_read_body = Some(VecDeque::new());
     } else {
-        ctx.pre_read_body = Some(VecDeque::from([frozen]));
+        ctx.pre_read_body = Some(VecDeque::from([forwarded]));
     }
 
     ctx.request_body_released = true;

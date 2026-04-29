@@ -44,14 +44,18 @@ async fn run_response_pipeline(
     ctx: &mut PingoraRequestCtx,
     resp: &mut praxis_filter::Response,
 ) -> Result<(std::result::Result<FilterAction, praxis_filter::FilterError>, bool)> {
-    let mut fctx = ctx.filter_context_for(pipeline, Some(resp)).ok_or_else(|| {
-        pingora_core::Error::explain(
-            pingora_core::ErrorType::InternalError,
-            "request snapshot not set during response phase",
-        )
-    })?;
-    let r = pipeline.execute_http_response(&mut fctx).await;
-    Ok((r, fctx.response_headers_modified))
+    let (r, headers_modified, response_body_mode) = {
+        let mut fctx = ctx.filter_context_for(pipeline, Some(resp)).ok_or_else(|| {
+            pingora_core::Error::explain(
+                pingora_core::ErrorType::InternalError,
+                "request snapshot not set during response phase",
+            )
+        })?;
+        let r = pipeline.execute_http_response(&mut fctx).await;
+        (r, fctx.response_headers_modified, fctx.response_body_mode)
+    };
+    ctx.response_body_mode = response_body_mode;
+    Ok((r, headers_modified))
 }
 
 /// Map the filter pipeline result to a Pingora Result, restoring headers on success.

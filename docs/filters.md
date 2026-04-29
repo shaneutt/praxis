@@ -336,10 +336,10 @@ fn request_body_access(&self) -> BodyAccess {
 | Mode                          | Behavior        | Use case                  |
 | ----------------------------- | --------------- | ------------------------- |
 | `Stream` (default)            | Per chunk       | Logging, transforms       |
-| `Buffer { max_bytes }`        | Full body       | JSON, payload routing     |
 | `StreamBuffer { max_bytes }`  | Deferred stream | Inspection before forward |
 
-If any filter requests `Buffer`, the pipeline buffers.
+If any filter requests `StreamBuffer`, the pipeline
+defers upstream forwarding until release.
 
 ### StreamBuffer Mode
 

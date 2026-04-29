@@ -326,15 +326,40 @@ chunks in place.
 - `Stream`: lowest latency; chunks flow through as they
   arrive. Best for filters that inspect headers only or
   process chunks independently.
-- `Buffer`: accumulates the entire body before
-  delivering it. Use when your filter needs the complete
-  body (e.g. signature verification). Set `max_bytes` to
-  avoid unbounded memory growth.
 - `StreamBuffer`: chunks flow through filters
   incrementally but forwarding to upstream is deferred
   until `Release` or end-of-stream. Use when body
-  content influences routing or when you need to inspect
-  the full body before upstream selection.
+  content influences routing, when you need the complete
+  body (e.g. signature verification), or when you need
+  to inspect the full body before upstream selection.
+  Set `max_bytes` to avoid unbounded memory growth.
+
+Two patterns for declaring `StreamBuffer`:
+
+**Static declaration** (filter always needs the body):
+
+```rust
+fn request_body_mode(&self) -> BodyMode {
+    BodyMode::StreamBuffer { max_bytes: Some(1_048_576) }
+}
+```
+
+**Per-request upgrade** (conditional buffering):
+
+```rust
+async fn on_request(
+    &self, ctx: &mut HttpFilterContext<'_>,
+) -> Result<FilterAction, FilterError> {
+    if needs_body_inspection(ctx) {
+        ctx.set_request_body_mode(
+            BodyMode::StreamBuffer {
+                max_bytes: Some(1_048_576),
+            },
+        );
+    }
+    Ok(FilterAction::Continue)
+}
+```
 
 ### `on_response_body` is synchronous
 

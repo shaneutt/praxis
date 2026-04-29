@@ -44,8 +44,8 @@
   by default, opt-in buffered or stream-buffered payload
   access with configurable size limits.
   Stream mode passes chunks through as they arrive
-  (lowest latency). Buffer mode accumulates the full
-  body. StreamBuffer delivers chunks to filters
+  (lowest latency). StreamBuffer delivers chunks to
+  filters
   incrementally but defers upstream forwarding until
   release. See [Payload Processing][payload-processing]
   in the architecture docs.

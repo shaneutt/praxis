@@ -199,8 +199,8 @@ impl HttpFilter for GuardrailsFilter {
 
     fn request_body_mode(&self) -> BodyMode {
         if self.needs_body {
-            BodyMode::Buffer {
-                max_bytes: DEFAULT_MAX_BODY_BYTES,
+            BodyMode::StreamBuffer {
+                max_bytes: Some(DEFAULT_MAX_BODY_BYTES),
             }
         } else {
             BodyMode::Stream
@@ -224,8 +224,12 @@ impl HttpFilter for GuardrailsFilter {
         &self,
         ctx: &mut HttpFilterContext<'_>,
         body: &mut Option<Bytes>,
-        _end_of_stream: bool,
+        end_of_stream: bool,
     ) -> Result<FilterAction, FilterError> {
+        if !end_of_stream {
+            return Ok(FilterAction::Continue);
+        }
+
         let Some(chunk) = body.as_ref() else {
             write_result(ctx, "passed");
             return Ok(FilterAction::Continue);

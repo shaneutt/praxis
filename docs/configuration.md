@@ -545,8 +545,8 @@ Each rule has:
 | `negate` | bool | no | Invert match (default: false) |
 
 Each rule must have either `contains` or `pattern`, not
-both. Body rules use Buffer mode (up to 1 MiB by default)
-to inspect the full request body.
+both. Body rules use StreamBuffer mode (up to 1 MiB by
+default) to inspect the full request body.
 
 ### CORS
 
@@ -649,7 +649,7 @@ body hooks. A filter can have both `conditions` and
 ## Payload Size Limits
 
 Global hard ceilings on request and response payload
-size. These apply across all body modes (Stream, Buffer,
+size. These apply across all body modes (Stream,
 StreamBuffer). When a filter also declares a per-filter
 `max_bytes`, the smaller of the two limits is enforced.
 Requests exceeding the limit receive 413 (Payload Too

@@ -22,13 +22,17 @@ use super::BodyMode;
 ///
 /// let caps = BodyCapabilities {
 ///     needs_request_body: true,
-///     request_body_mode: BodyMode::Buffer { max_bytes: 4096 },
+///     request_body_mode: BodyMode::StreamBuffer {
+///         max_bytes: Some(4096),
+///     },
 ///     ..Default::default()
 /// };
 /// assert!(caps.needs_request_body);
 /// assert!(matches!(
 ///     caps.request_body_mode,
-///     BodyMode::Buffer { max_bytes: 4096 }
+///     BodyMode::StreamBuffer {
+///         max_bytes: Some(4096)
+///     }
 /// ));
 /// assert!(!caps.needs_response_body, "unset fields stay at default");
 /// ```
@@ -38,11 +42,11 @@ pub struct BodyCapabilities {
     /// Whether any filter writes to the request body.
     pub any_request_body_writer: bool,
 
-    /// Whether any response condition references headers.
-    pub any_response_condition_uses_headers: bool,
-
     /// Whether any filter writes to the response body.
     pub any_response_body_writer: bool,
+
+    /// Whether any response condition references headers.
+    pub any_response_condition_uses_headers: bool,
 
     /// Whether any filter needs request body access.
     pub needs_request_body: bool,
@@ -53,10 +57,10 @@ pub struct BodyCapabilities {
     /// Whether any filter needs response body access.
     pub needs_response_body: bool,
 
-    /// Resolved request body mode (Buffer if any filter requires it).
+    /// Resolved request body mode (`StreamBuffer` if any filter requires it).
     pub request_body_mode: BodyMode,
 
-    /// Resolved response body mode (Buffer if any filter requires it).
+    /// Resolved response body mode (`StreamBuffer` if any filter requires it).
     pub response_body_mode: BodyMode,
 }
 

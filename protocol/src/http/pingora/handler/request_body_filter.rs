@@ -48,33 +48,9 @@ pub(super) async fn execute(
         return Ok(());
     }
 
-    let is_stream_buffer = matches!(caps.request_body_mode, BodyMode::StreamBuffer { .. });
+    let is_stream_buffer = matches!(ctx.request_body_mode, BodyMode::StreamBuffer { .. });
 
-    match caps.request_body_mode {
-        BodyMode::Buffer { max_bytes } => {
-            if let Some(chunk) = body.take() {
-                let buf = ctx
-                    .request_body_buffer
-                    .get_or_insert_with(|| BodyBuffer::new(max_bytes));
-
-                if buf.push(chunk).is_err() {
-                    send_rejection(session, Rejection::status(413)).await;
-                    return Err(pingora_core::Error::explain(
-                        pingora_core::ErrorType::HTTPStatus(413),
-                        "request body exceeds maximum size",
-                    ));
-                }
-            }
-
-            if !end_of_stream {
-                *body = None;
-                return Ok(());
-            }
-
-            let buf = ctx.request_body_buffer.take();
-            *body = buf.map(BodyBuffer::freeze);
-        },
-
+    match ctx.request_body_mode {
         BodyMode::SizeLimit { max_bytes } => {
             if let Some(ref chunk) = *body {
                 #[allow(clippy::cast_possible_truncation, reason = "chunk length fits u64")]
@@ -107,10 +83,16 @@ pub(super) async fn execute(
                     ));
                 }
             }
-            tracing::trace!("stream buffer: filters see the original chunk");
+
+            if end_of_stream {
+                tracing::trace!("stream buffer: freezing accumulated body before pipeline at EOS");
+                *body = ctx.request_body_buffer.take().map(BodyBuffer::freeze);
+            } else {
+                tracing::trace!("stream buffer: filters see the original chunk");
+            }
         },
 
-        BodyMode::StreamBuffer { .. } | BodyMode::Stream => {},
+        BodyMode::StreamBuffer { .. } | BodyMode::Stream | _ => {},
     }
 
     let (result, body_bytes, cluster, upstream) = {
@@ -129,20 +111,17 @@ pub(super) async fn execute(
 
     match result {
         Ok(FilterAction::Continue) => {
-            if is_stream_buffer && !ctx.request_body_released {
-                if end_of_stream {
-                    tracing::debug!("auto-releasing StreamBuffer on end-of-stream");
-                    *body = ctx.request_body_buffer.take().map(BodyBuffer::freeze);
-                } else {
-                    *body = None; // Suppress: don't forward yet.
-                }
+            if is_stream_buffer && !ctx.request_body_released && !end_of_stream {
+                *body = None;
             }
             Ok(())
         },
         Ok(FilterAction::Release) => {
             if is_stream_buffer && !ctx.request_body_released {
                 ctx.request_body_released = true;
-                *body = ctx.request_body_buffer.take().map(BodyBuffer::freeze);
+                if !end_of_stream {
+                    *body = ctx.request_body_buffer.take().map(BodyBuffer::freeze);
+                }
             }
             Ok(())
         },
@@ -184,45 +163,6 @@ mod tests {
     use praxis_filter::BodyBuffer;
 
     use crate::http::pingora::context::PingoraRequestCtx;
-
-    #[test]
-    fn buffer_accumulates_chunks() {
-        let mut ctx = make_ctx();
-
-        assert!(
-            buffer_chunk(&mut ctx, Bytes::from_static(b"hello "), 100),
-            "first chunk should succeed"
-        );
-        assert!(
-            buffer_chunk(&mut ctx, Bytes::from_static(b"world"), 100),
-            "second chunk should succeed"
-        );
-
-        let frozen = ctx.request_body_buffer.take().unwrap().freeze();
-        assert_eq!(
-            frozen,
-            Bytes::from_static(b"hello world"),
-            "chunks should be concatenated"
-        );
-    }
-
-    #[test]
-    fn buffer_overflow_is_detected() {
-        let mut ctx = make_ctx();
-        assert!(
-            !buffer_chunk(&mut ctx, Bytes::from_static(b"too long"), 3),
-            "chunk exceeding limit should fail"
-        );
-    }
-
-    #[test]
-    fn buffer_exact_limit_is_accepted() {
-        let mut ctx = make_ctx();
-        assert!(
-            buffer_chunk(&mut ctx, Bytes::from_static(b"abc"), 3),
-            "chunk at exact limit should succeed"
-        );
-    }
 
     #[test]
     fn stream_buffer_accumulates_and_clones() {
@@ -332,66 +272,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn buffer_empty_body_at_end_of_stream() {
-        let mut ctx = make_ctx();
-        let buf = ctx.request_body_buffer.take();
-        let body: Option<Bytes> = buf.map(BodyBuffer::freeze);
-        assert!(body.is_none(), "taking from empty buffer should yield None");
-    }
-
-    #[test]
-    fn buffer_single_chunk_freeze_avoids_copy() {
-        let mut ctx = make_ctx();
-        let buf = ctx.request_body_buffer.get_or_insert_with(|| BodyBuffer::new(100));
-        buf.push(Bytes::from_static(b"only")).unwrap();
-
-        let frozen = ctx.request_body_buffer.take().unwrap().freeze();
-        assert_eq!(
-            frozen,
-            Bytes::from_static(b"only"),
-            "single chunk should freeze without copy"
-        );
-    }
-
-    #[test]
-    fn buffer_multiple_chunks_concatenate_correctly() {
-        let mut ctx = make_ctx();
-        let buf = ctx.request_body_buffer.get_or_insert_with(|| BodyBuffer::new(1024));
-        buf.push(Bytes::from_static(b"a")).unwrap();
-        buf.push(Bytes::from_static(b"b")).unwrap();
-        buf.push(Bytes::from_static(b"c")).unwrap();
-
-        let frozen = ctx.request_body_buffer.take().unwrap().freeze();
-        assert_eq!(
-            frozen,
-            Bytes::from_static(b"abc"),
-            "multiple chunks should concatenate in order"
-        );
-    }
-
-    #[test]
-    fn buffer_incremental_overflow_on_second_push() {
-        let mut ctx = make_ctx();
-        assert!(
-            buffer_chunk(&mut ctx, Bytes::from_static(b"aa"), 5),
-            "first 2 bytes should fit"
-        );
-        assert!(
-            buffer_chunk(&mut ctx, Bytes::from_static(b"bb"), 5),
-            "next 2 bytes should fit"
-        );
-        assert!(
-            buffer_chunk(&mut ctx, Bytes::from_static(b"c"), 5),
-            "total of 5 should fit exact limit"
-        );
-        let buf = ctx.request_body_buffer.as_mut().unwrap();
-        assert!(
-            buf.push(Bytes::from_static(b"d")).is_err(),
-            "6th byte should overflow the 5-byte limit"
-        );
-    }
-
     // -------------------------------------------------------------------------
     // Test Utilities
     // -------------------------------------------------------------------------
@@ -399,14 +279,5 @@ mod tests {
     /// Create a default request context for body filter tests.
     fn make_ctx() -> PingoraRequestCtx {
         PingoraRequestCtx::default()
-    }
-
-    /// Push `chunk` into `ctx.request_body_buffer` bounded by `max_bytes`.
-    /// Returns `true` on success, `false` on overflow.
-    fn buffer_chunk(ctx: &mut PingoraRequestCtx, chunk: Bytes, max_bytes: usize) -> bool {
-        let buf = ctx
-            .request_body_buffer
-            .get_or_insert_with(|| BodyBuffer::new(max_bytes));
-        buf.push(chunk).is_ok()
     }
 }

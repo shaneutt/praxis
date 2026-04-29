@@ -38,32 +38,9 @@ pub(super) fn execute(
         return Ok(None);
     }
 
-    let is_stream_buffer = matches!(caps.response_body_mode, BodyMode::StreamBuffer { .. });
+    let is_stream_buffer = matches!(ctx.response_body_mode, BodyMode::StreamBuffer { .. });
 
-    match caps.response_body_mode {
-        BodyMode::Buffer { max_bytes } => {
-            if let Some(chunk) = body.take() {
-                let buf = ctx
-                    .response_body_buffer
-                    .get_or_insert_with(|| BodyBuffer::new(max_bytes));
-
-                if buf.push(chunk).is_err() {
-                    return Err(pingora_core::Error::explain(
-                        pingora_core::ErrorType::InternalError,
-                        "response body exceeds maximum size",
-                    ));
-                }
-            }
-
-            if !end_of_stream {
-                *body = None;
-                return Ok(None);
-            }
-
-            let buf = ctx.response_body_buffer.take();
-            *body = buf.map(BodyBuffer::freeze);
-        },
-
+    match ctx.response_body_mode {
         BodyMode::SizeLimit { max_bytes } => {
             if let Some(ref chunk) = *body {
                 #[allow(clippy::cast_possible_truncation, reason = "chunk length fits u64")]
@@ -94,10 +71,16 @@ pub(super) fn execute(
                     ));
                 }
             }
-            tracing::trace!("stream buffer: filters see the original chunk");
+
+            if end_of_stream {
+                tracing::trace!("stream buffer: freezing accumulated body before pipeline at EOS");
+                *body = ctx.response_body_buffer.take().map(BodyBuffer::freeze);
+            } else {
+                tracing::trace!("stream buffer: filters see the original chunk");
+            }
         },
 
-        BodyMode::StreamBuffer { .. } | BodyMode::Stream => {},
+        BodyMode::StreamBuffer { .. } | BodyMode::Stream | _ => {},
     }
 
     let (result, body_bytes, cluster, upstream) = {
@@ -115,19 +98,17 @@ pub(super) fn execute(
     ctx.upstream = upstream;
     match result {
         Ok(FilterAction::Continue) => {
-            if is_stream_buffer && !ctx.response_body_released {
-                if end_of_stream {
-                    *body = ctx.response_body_buffer.take().map(BodyBuffer::freeze);
-                } else {
-                    *body = None;
-                }
+            if is_stream_buffer && !ctx.response_body_released && !end_of_stream {
+                *body = None;
             }
             Ok(None)
         },
         Ok(FilterAction::Release) => {
             if is_stream_buffer && !ctx.response_body_released {
                 ctx.response_body_released = true;
-                *body = ctx.response_body_buffer.take().map(BodyBuffer::freeze);
+                if !end_of_stream {
+                    *body = ctx.response_body_buffer.take().map(BodyBuffer::freeze);
+                }
             }
             Ok(None)
         },

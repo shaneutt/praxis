@@ -7,7 +7,7 @@ use std::{collections::VecDeque, net::IpAddr, sync::Arc, time::Instant};
 
 use bytes::Bytes;
 use praxis_core::connectivity::Upstream;
-use praxis_filter::{BodyBuffer, FilterPipeline, Request};
+use praxis_filter::{BodyBuffer, BodyMode, FilterPipeline, Request};
 use tokio::sync::OwnedSemaphorePermit;
 
 // -----------------------------------------------------------------------------
@@ -62,11 +62,18 @@ pub struct PingoraRequestCtx {
     /// Uses `VecDeque` so that draining from the front is O(1).
     pub pre_read_body: Option<VecDeque<Bytes>>,
 
-    /// Buffer for request body accumulation in buffer mode.
+    /// Buffer for request body accumulation in [`StreamBuffer`] mode.
+    ///
+    /// [`StreamBuffer`]: praxis_filter::BodyMode::StreamBuffer
     pub request_body_buffer: Option<BodyBuffer>,
 
     /// Accumulated request body bytes seen so far.
     pub request_body_bytes: u64,
+
+    /// Per-request body delivery mode for the request direction.
+    /// Seeded from static pipeline capabilities, then potentially
+    /// upgraded by filters during `on_request`.
+    pub request_body_mode: BodyMode,
 
     /// Whether the request body has been released (`StreamBuffer` mode).
     /// Once true, remaining chunks bypass buffering and stream through.
@@ -81,11 +88,18 @@ pub struct PingoraRequestCtx {
     /// When this request was received.
     pub request_start: Instant,
 
-    /// Buffer for response body accumulation in buffer mode.
+    /// Buffer for response body accumulation in [`StreamBuffer`] mode.
+    ///
+    /// [`StreamBuffer`]: praxis_filter::BodyMode::StreamBuffer
     pub response_body_buffer: Option<BodyBuffer>,
 
     /// Accumulated response body bytes seen so far.
     pub response_body_bytes: u64,
+
+    /// Per-request body delivery mode for the response direction.
+    /// Seeded from static pipeline capabilities, then potentially
+    /// upgraded by filters during `on_response`.
+    pub response_body_mode: BodyMode,
 
     /// Whether the response body has been released (`StreamBuffer` mode).
     pub response_body_released: bool,
@@ -134,8 +148,10 @@ macro_rules! filter_context {
             health_registry: $pipeline.health_registry(),
             request: $request,
             request_body_bytes: $ctx.request_body_bytes,
+            request_body_mode: $ctx.request_body_mode,
             request_start: $ctx.request_start,
             response_body_bytes: $ctx.response_body_bytes,
+            response_body_mode: $ctx.response_body_mode,
             response_header: $response_header,
             response_headers_modified: false,
             rewritten_path: $ctx.rewritten_path.take(),
@@ -224,12 +240,14 @@ impl Default for PingoraRequestCtx {
             pre_read_body: None,
             request_body_buffer: None,
             request_body_bytes: 0,
+            request_body_mode: BodyMode::Stream,
             request_body_released: false,
             request_is_idempotent: false,
             request_snapshot: None,
             request_start: Instant::now(),
             response_body_buffer: None,
             response_body_bytes: 0,
+            response_body_mode: BodyMode::Stream,
             response_body_released: false,
             response_phase_done: false,
             retries: 0,
@@ -262,7 +280,7 @@ mod tests {
     use bytes::Bytes;
     use http::{HeaderMap, Method, Uri};
     use praxis_core::connectivity::Upstream;
-    use praxis_filter::BodyBuffer;
+    use praxis_filter::{BodyBuffer, BodyMode};
 
     use super::*;
 
@@ -457,6 +475,48 @@ mod tests {
             "frozen buffer should contain pushed data"
         );
         assert!(ctx.request_body_buffer.is_none(), "buffer should be None after take");
+    }
+
+    #[test]
+    fn default_request_body_mode_is_stream() {
+        let ctx = default_ctx();
+        assert_eq!(
+            ctx.request_body_mode,
+            BodyMode::Stream,
+            "default request_body_mode should be Stream"
+        );
+    }
+
+    #[test]
+    fn default_response_body_mode_is_stream() {
+        let ctx = default_ctx();
+        assert_eq!(
+            ctx.response_body_mode,
+            BodyMode::Stream,
+            "default response_body_mode should be Stream"
+        );
+    }
+
+    #[test]
+    fn set_request_body_mode() {
+        let mut ctx = default_ctx();
+        ctx.request_body_mode = BodyMode::StreamBuffer { max_bytes: Some(4096) };
+        assert_eq!(
+            ctx.request_body_mode,
+            BodyMode::StreamBuffer { max_bytes: Some(4096) },
+            "request_body_mode should match assigned value"
+        );
+    }
+
+    #[test]
+    fn set_response_body_mode() {
+        let mut ctx = default_ctx();
+        ctx.response_body_mode = BodyMode::StreamBuffer { max_bytes: Some(8192) };
+        assert_eq!(
+            ctx.response_body_mode,
+            BodyMode::StreamBuffer { max_bytes: Some(8192) },
+            "response_body_mode should match assigned value"
+        );
     }
 
     // -------------------------------------------------------------------------

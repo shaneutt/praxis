@@ -28,10 +28,10 @@ fn body_access_with_body_rules() {
     );
     assert_eq!(
         f.request_body_mode(),
-        BodyMode::Buffer {
-            max_bytes: DEFAULT_MAX_BODY_BYTES
+        BodyMode::StreamBuffer {
+            max_bytes: Some(DEFAULT_MAX_BODY_BYTES)
         },
-        "body rules need Buffer mode"
+        "body rules need StreamBuffer mode"
     );
 }
 

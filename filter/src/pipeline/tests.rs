@@ -1197,19 +1197,19 @@ fn apply_body_limits_stream_uses_size_limit() {
     assert_eq!(
         pipeline.body_capabilities().request_body_mode,
         BodyMode::SizeLimit { max_bytes: 4096 },
-        "Stream mode should become SizeLimit, not Buffer"
+        "Stream mode should become SizeLimit"
     );
     assert_eq!(
         pipeline.body_capabilities().response_body_mode,
         BodyMode::SizeLimit { max_bytes: 8192 },
-        "Stream mode should become SizeLimit, not Buffer"
+        "Stream mode should become SizeLimit"
     );
 }
 
 #[test]
 fn apply_body_limits_filter_stricter_than_config() {
     let mut caps = BodyCapabilities::default();
-    caps.request_body_mode = BodyMode::Buffer { max_bytes: 500 };
+    caps.request_body_mode = BodyMode::StreamBuffer { max_bytes: Some(500) };
     caps.needs_request_body = true;
     let mut pipeline = FilterPipeline {
         body_capabilities: caps,
@@ -1220,7 +1220,7 @@ fn apply_body_limits_filter_stricter_than_config() {
     pipeline.apply_body_limits(Some(1000), None, false).unwrap();
     assert_eq!(
         pipeline.body_capabilities().request_body_mode,
-        BodyMode::Buffer { max_bytes: 500 },
+        BodyMode::StreamBuffer { max_bytes: Some(500) },
         "filter's stricter limit should be preserved"
     );
 }
@@ -1228,7 +1228,7 @@ fn apply_body_limits_filter_stricter_than_config() {
 #[test]
 fn apply_body_limits_config_stricter_than_filter() {
     let caps = BodyCapabilities {
-        request_body_mode: BodyMode::Buffer { max_bytes: 2000 },
+        request_body_mode: BodyMode::StreamBuffer { max_bytes: Some(2000) },
         needs_request_body: true,
         ..BodyCapabilities::default()
     };
@@ -1241,7 +1241,7 @@ fn apply_body_limits_config_stricter_than_filter() {
     pipeline.apply_body_limits(Some(1000), None, false).unwrap();
     assert_eq!(
         pipeline.body_capabilities().request_body_mode,
-        BodyMode::Buffer { max_bytes: 1000 },
+        BodyMode::StreamBuffer { max_bytes: Some(1000) },
         "config's stricter limit should override filter's limit"
     );
 }
@@ -1588,6 +1588,302 @@ async fn skipped_filter_skips_its_branches() {
     );
 }
 
+#[tokio::test]
+async fn stream_buffer_eos_delivers_frozen_body() {
+    let chunks = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let pipeline = make_pipeline(vec![Box::new(BodyInspectorFilter {
+        chunks: Arc::clone(&chunks),
+    })]);
+    let req = crate::test_utils::make_request(Method::POST, "/upload");
+    let mut ctx = crate::test_utils::make_filter_context(&req);
+
+    let mut body1 = Some(Bytes::from_static(b"hello "));
+    drop(
+        pipeline
+            .execute_http_request_body(&mut ctx, &mut body1, false)
+            .await
+            .unwrap(),
+    );
+
+    let mut body2 = Some(Bytes::from_static(b"world"));
+    drop(
+        pipeline
+            .execute_http_request_body(&mut ctx, &mut body2, true)
+            .await
+            .unwrap(),
+    );
+
+    let seen = chunks.lock().unwrap();
+    assert_eq!(seen.len(), 2, "inspector should have been called twice");
+    assert_eq!(
+        seen[0],
+        Bytes::from_static(b"hello "),
+        "first call should see raw chunk"
+    );
+    assert_eq!(
+        seen[1],
+        Bytes::from_static(b"world"),
+        "second call should see chunk delivered at EOS"
+    );
+}
+
+#[tokio::test]
+async fn stream_buffer_non_eos_delivers_raw_chunk() {
+    let chunks = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let pipeline = make_pipeline(vec![Box::new(BodyInspectorFilter {
+        chunks: Arc::clone(&chunks),
+    })]);
+    let req = crate::test_utils::make_request(Method::POST, "/upload");
+    let mut ctx = crate::test_utils::make_filter_context(&req);
+
+    let mut body = Some(Bytes::from_static(b"hello "));
+    drop(
+        pipeline
+            .execute_http_request_body(&mut ctx, &mut body, false)
+            .await
+            .unwrap(),
+    );
+
+    let seen = chunks.lock().unwrap();
+    assert_eq!(seen.len(), 1, "inspector should have been called once");
+    assert_eq!(
+        seen[0],
+        Bytes::from_static(b"hello "),
+        "non-EOS call should see raw chunk"
+    );
+}
+
+#[tokio::test]
+async fn three_filters_all_see_each_chunk() {
+    let chunks_a = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let chunks_b = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let chunks_c = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let pipeline = make_pipeline(vec![
+        Box::new(BodyInspectorFilter {
+            chunks: Arc::clone(&chunks_a),
+        }),
+        Box::new(BodyInspectorFilter {
+            chunks: Arc::clone(&chunks_b),
+        }),
+        Box::new(BodyInspectorFilter {
+            chunks: Arc::clone(&chunks_c),
+        }),
+    ]);
+    let req = crate::test_utils::make_request(Method::POST, "/upload");
+    let mut ctx = crate::test_utils::make_filter_context(&req);
+
+    let mut body = Some(Bytes::from_static(b"payload"));
+    drop(
+        pipeline
+            .execute_http_request_body(&mut ctx, &mut body, false)
+            .await
+            .unwrap(),
+    );
+
+    let a = chunks_a.lock().unwrap();
+    let b = chunks_b.lock().unwrap();
+    let c = chunks_c.lock().unwrap();
+    assert_eq!(a.len(), 1, "filter A should see one chunk");
+    assert_eq!(b.len(), 1, "filter B should see one chunk");
+    assert_eq!(c.len(), 1, "filter C should see one chunk");
+    assert_eq!(
+        a[0],
+        Bytes::from_static(b"payload"),
+        "filter A should see correct content"
+    );
+    assert_eq!(
+        b[0],
+        Bytes::from_static(b"payload"),
+        "filter B should see correct content"
+    );
+    assert_eq!(
+        c[0],
+        Bytes::from_static(b"payload"),
+        "filter C should see correct content"
+    );
+}
+
+#[tokio::test]
+async fn three_filters_see_frozen_body_at_eos() {
+    let chunks_a = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let chunks_b = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let chunks_c = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let pipeline = make_pipeline(vec![
+        Box::new(BodyInspectorFilter {
+            chunks: Arc::clone(&chunks_a),
+        }),
+        Box::new(BodyInspectorFilter {
+            chunks: Arc::clone(&chunks_b),
+        }),
+        Box::new(BodyInspectorFilter {
+            chunks: Arc::clone(&chunks_c),
+        }),
+    ]);
+    let req = crate::test_utils::make_request(Method::POST, "/upload");
+    let mut ctx = crate::test_utils::make_filter_context(&req);
+
+    let mut body1 = Some(Bytes::from_static(b"first "));
+    drop(
+        pipeline
+            .execute_http_request_body(&mut ctx, &mut body1, false)
+            .await
+            .unwrap(),
+    );
+
+    let mut body2 = Some(Bytes::from_static(b"second"));
+    drop(
+        pipeline
+            .execute_http_request_body(&mut ctx, &mut body2, true)
+            .await
+            .unwrap(),
+    );
+
+    for (label, chunks) in [("A", &chunks_a), ("B", &chunks_b), ("C", &chunks_c)] {
+        let seen = chunks.lock().unwrap();
+        assert_eq!(seen.len(), 2, "filter {label} should see two calls");
+        assert_eq!(
+            seen[0],
+            Bytes::from_static(b"first "),
+            "filter {label} should see raw first chunk"
+        );
+        assert_eq!(
+            seen[1],
+            Bytes::from_static(b"second"),
+            "filter {label} should see chunk at EOS"
+        );
+    }
+}
+
+#[tokio::test]
+async fn mutation_visible_to_subsequent_filters() {
+    let chunks = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let pipeline = make_pipeline(vec![
+        Box::new(BodyUppercaseFilter),
+        Box::new(BodyInspectorFilter {
+            chunks: Arc::clone(&chunks),
+        }),
+    ]);
+    let req = crate::test_utils::make_request(Method::POST, "/upload");
+    let mut ctx = crate::test_utils::make_filter_context(&req);
+
+    let mut body = Some(Bytes::from_static(b"hello"));
+    drop(
+        pipeline
+            .execute_http_request_body(&mut ctx, &mut body, true)
+            .await
+            .unwrap(),
+    );
+
+    let seen = chunks.lock().unwrap();
+    assert_eq!(seen.len(), 1, "inspector should see one chunk");
+    assert_eq!(
+        seen[0],
+        Bytes::from_static(b"HELLO"),
+        "inspector should see uppercased body from preceding filter"
+    );
+}
+
+#[tokio::test]
+async fn release_from_first_filter_still_delivers_to_all() {
+    let chunks = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let pipeline = make_pipeline(vec![
+        Box::new(StreamBufferReleaseFilter { marker: b"GO" }),
+        Box::new(BodyInspectorFilter {
+            chunks: Arc::clone(&chunks),
+        }),
+    ]);
+    let req = crate::test_utils::make_request(Method::POST, "/upload");
+    let mut ctx = crate::test_utils::make_filter_context(&req);
+
+    let mut body = Some(Bytes::from_static(b"GO"));
+    let action = pipeline
+        .execute_http_request_body(&mut ctx, &mut body, false)
+        .await
+        .unwrap();
+
+    assert!(matches!(action, FilterAction::Release), "should propagate Release");
+    let seen = chunks.lock().unwrap();
+    assert_eq!(seen.len(), 1, "inspector should still see the chunk after Release");
+    assert_eq!(
+        seen[0],
+        Bytes::from_static(b"GO"),
+        "inspector should see correct content"
+    );
+}
+
+#[tokio::test]
+async fn filter_takes_body_next_sees_none() {
+    let chunks = Arc::new(std::sync::Mutex::new(Vec::<Option<Bytes>>::new()));
+    let pipeline = make_pipeline(vec![
+        Box::new(BodyTakeFilter),
+        Box::new(NullableBodyInspectorFilter {
+            chunks: Arc::clone(&chunks),
+        }),
+    ]);
+    let req = crate::test_utils::make_request(Method::POST, "/upload");
+    let mut ctx = crate::test_utils::make_filter_context(&req);
+
+    let mut body = Some(Bytes::from_static(b"disappear"));
+    drop(
+        pipeline
+            .execute_http_request_body(&mut ctx, &mut body, false)
+            .await
+            .unwrap(),
+    );
+
+    let seen = chunks.lock().unwrap();
+    assert_eq!(seen.len(), 1, "nullable inspector should be called once");
+    assert!(seen[0].is_none(), "inspector should see None after take()");
+}
+
+#[tokio::test]
+async fn single_chunk_eos() {
+    let chunks = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let pipeline = make_pipeline(vec![Box::new(BodyInspectorFilter {
+        chunks: Arc::clone(&chunks),
+    })]);
+    let req = crate::test_utils::make_request(Method::POST, "/upload");
+    let mut ctx = crate::test_utils::make_filter_context(&req);
+
+    let mut body = Some(Bytes::from_static(b"only"));
+    drop(
+        pipeline
+            .execute_http_request_body(&mut ctx, &mut body, true)
+            .await
+            .unwrap(),
+    );
+
+    let seen = chunks.lock().unwrap();
+    assert_eq!(seen.len(), 1, "inspector should record exactly one call");
+    assert_eq!(
+        seen[0],
+        Bytes::from_static(b"only"),
+        "single EOS chunk should contain full body"
+    );
+}
+
+#[tokio::test]
+async fn empty_body_eos() {
+    let chunks = Arc::new(std::sync::Mutex::new(Vec::<Option<Bytes>>::new()));
+    let pipeline = make_pipeline(vec![Box::new(NullableBodyInspectorFilter {
+        chunks: Arc::clone(&chunks),
+    })]);
+    let req = crate::test_utils::make_request(Method::POST, "/upload");
+    let mut ctx = crate::test_utils::make_filter_context(&req);
+
+    let mut body: Option<Bytes> = None;
+    drop(
+        pipeline
+            .execute_http_request_body(&mut ctx, &mut body, true)
+            .await
+            .unwrap(),
+    );
+
+    let seen = chunks.lock().unwrap();
+    assert_eq!(seen.len(), 1, "nullable inspector should be called even with None body");
+    assert!(seen[0].is_none(), "recorded body should be None");
+}
+
 // -----------------------------------------------------------------------------
 // Test Utilities
 // -----------------------------------------------------------------------------
@@ -1852,6 +2148,65 @@ impl HttpFilter for SwapHeaderFilter {
             resp.headers.remove("x-old");
             resp.headers.insert("x-new", "value".parse().unwrap());
         }
+        Ok(FilterAction::Continue)
+    }
+}
+
+/// A filter that calls `body.take()`, consuming the body.
+struct BodyTakeFilter;
+
+#[async_trait]
+impl HttpFilter for BodyTakeFilter {
+    fn name(&self) -> &'static str {
+        "body_take"
+    }
+
+    async fn on_request(&self, _ctx: &mut crate::HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+        Ok(FilterAction::Continue)
+    }
+
+    fn request_body_access(&self) -> BodyAccess {
+        BodyAccess::ReadWrite
+    }
+
+    async fn on_request_body(
+        &self,
+        _ctx: &mut crate::HttpFilterContext<'_>,
+        body: &mut Option<Bytes>,
+        _end_of_stream: bool,
+    ) -> Result<FilterAction, FilterError> {
+        body.take();
+        Ok(FilterAction::Continue)
+    }
+}
+
+/// A filter that records body presence (including None) for each call.
+struct NullableBodyInspectorFilter {
+    /// Each entry is the body snapshot: `Some(bytes)` or `None`.
+    chunks: Arc<std::sync::Mutex<Vec<Option<Bytes>>>>,
+}
+
+#[async_trait]
+impl HttpFilter for NullableBodyInspectorFilter {
+    fn name(&self) -> &'static str {
+        "nullable_body_inspector"
+    }
+
+    async fn on_request(&self, _ctx: &mut crate::HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+        Ok(FilterAction::Continue)
+    }
+
+    fn request_body_access(&self) -> BodyAccess {
+        BodyAccess::ReadOnly
+    }
+
+    async fn on_request_body(
+        &self,
+        _ctx: &mut crate::HttpFilterContext<'_>,
+        body: &mut Option<Bytes>,
+        _end_of_stream: bool,
+    ) -> Result<FilterAction, FilterError> {
+        self.chunks.lock().unwrap().push(body.clone());
         Ok(FilterAction::Continue)
     }
 }

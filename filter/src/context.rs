@@ -8,7 +8,7 @@ use std::{borrow::Cow, collections::HashMap, net::IpAddr, sync::Arc, time::Insta
 use http::{HeaderMap, Method, StatusCode, Uri};
 use praxis_core::{connectivity::Upstream, health::HealthRegistry};
 
-use crate::results::FilterResultSet;
+use crate::{body::BodyMode, pipeline::body::merge_body_mode, results::FilterResultSet};
 
 // -----------------------------------------------------------------------------
 // HttpFilterContext
@@ -54,11 +54,25 @@ pub struct HttpFilterContext<'a> {
     /// Accumulated request body bytes seen so far.
     pub request_body_bytes: u64,
 
+    /// Per-request body delivery mode for the request direction.
+    /// Defaults to [`BodyMode::Stream`]; filters may upgrade it
+    /// via [`set_request_body_mode`].
+    ///
+    /// [`set_request_body_mode`]: Self::set_request_body_mode
+    pub request_body_mode: BodyMode,
+
     /// When the request was received; available in all phases.
     pub request_start: Instant,
 
     /// Accumulated response body bytes seen so far.
     pub response_body_bytes: u64,
+
+    /// Per-request body delivery mode for the response direction.
+    /// Defaults to [`BodyMode::Stream`]; filters may upgrade it
+    /// via [`set_response_body_mode`].
+    ///
+    /// [`set_response_body_mode`]: Self::set_response_body_mode
+    pub response_body_mode: BodyMode,
 
     /// The upstream response headers, available during `on_response`.
     /// `None` during the request phase.
@@ -103,6 +117,24 @@ impl HttpFilterContext<'_> {
     /// X-Request-ID header value, if present and valid UTF-8.
     pub fn request_id(&self) -> Option<&str> {
         self.request.headers.get("x-request-id").and_then(|v| v.to_str().ok())
+    }
+
+    /// Upgrade the request body delivery mode for this request.
+    ///
+    /// Merges `mode` into the current mode using ratchet-up
+    /// semantics: `StreamBuffer > SizeLimit > Stream`. A mode
+    /// can only be upgraded, never downgraded.
+    pub fn set_request_body_mode(&mut self, mode: BodyMode) {
+        merge_body_mode(&mut self.request_body_mode, mode);
+    }
+
+    /// Upgrade the response body delivery mode for this request.
+    ///
+    /// Same ratchet-up semantics as [`set_request_body_mode`].
+    ///
+    /// [`set_request_body_mode`]: Self::set_request_body_mode
+    pub fn set_response_body_mode(&mut self, mode: BodyMode) {
+        merge_body_mode(&mut self.response_body_mode, mode);
     }
 }
 
@@ -270,6 +302,58 @@ mod tests {
             ctx.request_id(),
             Some("abc-123"),
             "request ID should return header value"
+        );
+    }
+
+    #[test]
+    fn set_request_body_mode_upgrades_stream_to_stream_buffer() {
+        let req = crate::test_utils::make_request(Method::GET, "/");
+        let mut ctx = crate::test_utils::make_filter_context(&req);
+        assert_eq!(ctx.request_body_mode, BodyMode::Stream, "should start as Stream");
+        ctx.set_request_body_mode(BodyMode::StreamBuffer { max_bytes: Some(4096) });
+        assert_eq!(
+            ctx.request_body_mode,
+            BodyMode::StreamBuffer { max_bytes: Some(4096) },
+            "Stream should upgrade to StreamBuffer"
+        );
+    }
+
+    #[test]
+    fn set_request_body_mode_cannot_downgrade() {
+        let req = crate::test_utils::make_request(Method::GET, "/");
+        let mut ctx = crate::test_utils::make_filter_context(&req);
+        ctx.set_request_body_mode(BodyMode::StreamBuffer { max_bytes: Some(2048) });
+        ctx.set_request_body_mode(BodyMode::Stream);
+        assert_eq!(
+            ctx.request_body_mode,
+            BodyMode::StreamBuffer { max_bytes: Some(2048) },
+            "StreamBuffer should not downgrade to Stream"
+        );
+    }
+
+    #[test]
+    fn set_response_body_mode_upgrades_stream_to_stream_buffer() {
+        let req = crate::test_utils::make_request(Method::GET, "/");
+        let mut ctx = crate::test_utils::make_filter_context(&req);
+        assert_eq!(ctx.response_body_mode, BodyMode::Stream, "should start as Stream");
+        ctx.set_response_body_mode(BodyMode::StreamBuffer { max_bytes: Some(8192) });
+        assert_eq!(
+            ctx.response_body_mode,
+            BodyMode::StreamBuffer { max_bytes: Some(8192) },
+            "Stream should upgrade to StreamBuffer"
+        );
+    }
+
+    #[test]
+    fn set_request_body_mode_stream_buffer_then_stream_buffer_merges_limits() {
+        let req = crate::test_utils::make_request(Method::GET, "/");
+        let mut ctx = crate::test_utils::make_filter_context(&req);
+        ctx.set_request_body_mode(BodyMode::StreamBuffer { max_bytes: Some(2048) });
+        ctx.set_request_body_mode(BodyMode::StreamBuffer { max_bytes: Some(1024) });
+        assert_eq!(
+            ctx.request_body_mode,
+            BodyMode::StreamBuffer { max_bytes: Some(1024) },
+            "smaller StreamBuffer limit should win when merging"
         );
     }
 }
