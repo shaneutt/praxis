@@ -26,6 +26,7 @@ page.
 | [path-based-routing.yaml](configs/traffic-management/path-based-routing.yaml) | Route by URL path prefix to separate clusters |
 | [hosts.yaml](configs/traffic-management/hosts.yaml) | Route by Host header; one listener, multiple domains |
 | [canary-routing.yaml](configs/traffic-management/canary-routing.yaml) | Weighted traffic split for canary deployments |
+| [circuit-breaker.yaml](configs/traffic-management/circuit-breaker.yaml) | Per-cluster circuit breaker with closed/open/half-open states |
 | [round-robin.yaml](configs/traffic-management/round-robin.yaml) | Default strategy: even distribution across backends |
 | [weighted-load-balancing.yaml](configs/traffic-management/weighted-load-balancing.yaml) | Proportional traffic split via per-endpoint weights |
 | [least-connections.yaml](configs/traffic-management/least-connections.yaml) | Route to backend with fewest in-flight requests |
@@ -117,6 +118,7 @@ page.
 
 | File | Description |
 | ------ | ------------- |
+| [credential-injection.yaml](configs/ai/credential-injection.yaml) | Inject per-cluster API credentials and strip client tokens |
 | [model-to-header-routing.yaml](configs/ai/model-to-header-routing.yaml) | Route by model field in JSON body via X-Model header |
 
 ### Branching
