@@ -427,3 +427,135 @@ fn multi_listener_body_pipeline_stream_buffer_routes() {
         "model=claude-sonnet-4-5 should route to claude_sonnet cluster on stream-buffer listener"
     );
 }
+
+#[test]
+fn json_rpc_routing_routes_mcp_tools() {
+    let mcp_tools_guard = start_backend_with_shutdown("mcp-tools-response");
+    let mcp_tools_port = mcp_tools_guard.port();
+    let mcp_discovery_guard = start_backend_with_shutdown("mcp-discovery-response");
+    let mcp_discovery_port = mcp_discovery_guard.port();
+    let a2a_send_guard = start_backend_with_shutdown("a2a-send-response");
+    let a2a_send_port = a2a_send_guard.port();
+    let a2a_tasks_guard = start_backend_with_shutdown("a2a-tasks-response");
+    let a2a_tasks_port = a2a_tasks_guard.port();
+    let default_guard = start_backend_with_shutdown("default-response");
+    let default_port = default_guard.port();
+    let proxy_port = free_port();
+
+    let config = load_example_config(
+        "payload-processing/json-rpc-routing.yaml",
+        proxy_port,
+        HashMap::from([
+            ("127.0.0.1:9001", mcp_tools_port),
+            ("127.0.0.1:9002", mcp_tools_port),
+            ("127.0.0.1:9101", mcp_discovery_port),
+            ("127.0.0.1:9201", a2a_send_port),
+            ("127.0.0.1:9202", a2a_send_port),
+            ("127.0.0.1:9301", a2a_tasks_port),
+            ("127.0.0.1:9000", default_port),
+        ]),
+    );
+    let proxy = start_proxy(&config);
+
+    let raw = http_send(
+        proxy.addr(),
+        &json_post(
+            "/mcp/",
+            r#"{"jsonrpc":"2.0","id":"req-1","method":"tools/call","params":{"name":"calculator"}}"#,
+        ),
+    );
+    assert_eq!(parse_status(&raw), 200, "MCP tools/call should return 200");
+    assert_eq!(
+        parse_body(&raw),
+        "mcp-tools-response",
+        "JSON-RPC method=tools/call should route to mcp-tools cluster"
+    );
+}
+
+#[test]
+fn json_rpc_routing_routes_a2a_send() {
+    let mcp_tools_guard = start_backend_with_shutdown("mcp-tools-response");
+    let mcp_tools_port = mcp_tools_guard.port();
+    let mcp_discovery_guard = start_backend_with_shutdown("mcp-discovery-response");
+    let mcp_discovery_port = mcp_discovery_guard.port();
+    let a2a_send_guard = start_backend_with_shutdown("a2a-send-response");
+    let a2a_send_port = a2a_send_guard.port();
+    let a2a_tasks_guard = start_backend_with_shutdown("a2a-tasks-response");
+    let a2a_tasks_port = a2a_tasks_guard.port();
+    let default_guard = start_backend_with_shutdown("default-response");
+    let default_port = default_guard.port();
+    let proxy_port = free_port();
+
+    let config = load_example_config(
+        "payload-processing/json-rpc-routing.yaml",
+        proxy_port,
+        HashMap::from([
+            ("127.0.0.1:9001", mcp_tools_port),
+            ("127.0.0.1:9002", mcp_tools_port),
+            ("127.0.0.1:9101", mcp_discovery_port),
+            ("127.0.0.1:9201", a2a_send_port),
+            ("127.0.0.1:9202", a2a_send_port),
+            ("127.0.0.1:9301", a2a_tasks_port),
+            ("127.0.0.1:9000", default_port),
+        ]),
+    );
+    let proxy = start_proxy(&config);
+
+    let raw = http_send(
+        proxy.addr(),
+        &json_post(
+            "/a2a/",
+            r#"{"jsonrpc":"2.0","id":"msg-123","method":"SendMessage","params":{"recipient":"agent-42"}}"#,
+        ),
+    );
+    assert_eq!(parse_status(&raw), 200, "A2A SendMessage should return 200");
+    assert_eq!(
+        parse_body(&raw),
+        "a2a-send-response",
+        "JSON-RPC method=SendMessage should route to a2a-send cluster"
+    );
+}
+
+#[test]
+fn json_rpc_routing_falls_through_to_default() {
+    let mcp_tools_guard = start_backend_with_shutdown("mcp-tools-response");
+    let mcp_tools_port = mcp_tools_guard.port();
+    let mcp_discovery_guard = start_backend_with_shutdown("mcp-discovery-response");
+    let mcp_discovery_port = mcp_discovery_guard.port();
+    let a2a_send_guard = start_backend_with_shutdown("a2a-send-response");
+    let a2a_send_port = a2a_send_guard.port();
+    let a2a_tasks_guard = start_backend_with_shutdown("a2a-tasks-response");
+    let a2a_tasks_port = a2a_tasks_guard.port();
+    let default_guard = start_backend_with_shutdown("default-response");
+    let default_port = default_guard.port();
+    let proxy_port = free_port();
+
+    let config = load_example_config(
+        "payload-processing/json-rpc-routing.yaml",
+        proxy_port,
+        HashMap::from([
+            ("127.0.0.1:9001", mcp_tools_port),
+            ("127.0.0.1:9002", mcp_tools_port),
+            ("127.0.0.1:9101", mcp_discovery_port),
+            ("127.0.0.1:9201", a2a_send_port),
+            ("127.0.0.1:9202", a2a_send_port),
+            ("127.0.0.1:9301", a2a_tasks_port),
+            ("127.0.0.1:9000", default_port),
+        ]),
+    );
+    let proxy = start_proxy(&config);
+
+    let raw = http_send(
+        proxy.addr(),
+        &json_post(
+            "/unknown/",
+            r#"{"jsonrpc":"2.0","id":"unknown-1","method":"UnknownMethod"}"#,
+        ),
+    );
+    assert_eq!(parse_status(&raw), 200, "unknown method should return 200");
+    assert_eq!(
+        parse_body(&raw),
+        "default-response",
+        "unknown method should route to default cluster"
+    );
+}

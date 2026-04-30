@@ -480,6 +480,7 @@ A filter can have both `conditions` (request phase) and
 | `guardrails` | Security | HTTP | Reject requests matching header/body string or regex rules |
 | `ip_acl` | Security | HTTP | `allow` / `deny` (CIDR lists); 403 on denial |
 | `json_body_field` | Payload Processing | HTTP | Extract a JSON body field and promote to header |
+| `json_rpc` | Payload Processing | HTTP | Parse JSON-RPC 2.0 envelopes and extract method/id/kind for routing |
 | `compression` | Payload Processing | HTTP | Gzip, brotli, and zstd response compression |
 | `cors` | Security | HTTP | CORS preflight handling, origin validation, credential support |
 | `redirect` | Traffic Management | HTTP | `status` (301/302/307/308), `location` template with `${path}`/`${query}` |

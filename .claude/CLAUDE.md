@@ -153,6 +153,12 @@ See `docs/filters.md` for the full filter reference.
 
 Example configs: `examples/configs/<category>/`.
 
+## CI Workflows
+
+CI workflows that post PR comments must use the
+`PRAXIS_BOT` secret as the token, not the default
+`github.token`.
+
 ## Pingora Boundary
 
 See `docs/security-hardening.md` for details.

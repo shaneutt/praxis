@@ -6,8 +6,8 @@ name: Coding Conventions
 
 on:
   pull_request_target:
-    branches: [main]
-    types: [opened, synchronize, reopened]
+    branches: [ main ]
+    types: [ opened, synchronize, reopened ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -86,4 +86,39 @@ jobs:
           if [ "$word_count" -lt 2 ]; then # minimum "fixes <issue_number>"
             gh pr comment "$PR_NUMBER" --repo "${{ github.repository }}" \
               --body "Please add a description to this PR explaining what it does and why. See our [coding conventions](docs/conventions.md)."
+          fi
+
+  # ----------------------------------------------------------------------------
+  # Signed Commits Check
+  # ----------------------------------------------------------------------------
+
+  signed-commits-check:
+    if: |
+      !startsWith(github.head_ref, 'release-notes/pr-') ||
+      github.event.pull_request.user.login != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check signed commits in PR
+        env:
+          GH_TOKEN: ${{ secrets.PRAXIS_BOT }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          unsigned=$(gh api "repos/${{ github.repository }}/pulls/${PR_NUMBER}/commits" \
+            --paginate --jq '[.[] | select(.commit.verification.verified == false) | .sha[:7]] | join(", ")')
+
+          if [ -n "$unsigned" ]; then
+            marker="<!-- praxis:signed-commits-check -->"
+            already=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+              --jq "[.[] | select(.body | contains(\"${marker}\"))] | length")
+            if [ "$already" -eq 0 ]; then
+              body="${marker}
+          ### Unsigned commits detected
+
+          The following commits are not signed: **${unsigned}**
+
+          Please sign your commits. For instructions on how to set up GPG/SSH signing, see [GitHub Documentation](https://docs.github.com/en/authentication/managing-commit-signature-verification)."
+              gh pr comment "$PR_NUMBER" --repo "${{ github.repository }}" --body "$body"
+            fi
+            echo "::error::Unsigned commits found: ${unsigned}"
+            exit 1
           fi

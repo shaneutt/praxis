@@ -235,10 +235,17 @@ Praxis targets first-class support for AI agent
 protocols, positioning MCP and A2A as headline
 capabilities alongside HTTP and TCP proxying.
 
+### JSON-RPC Support
+
+- **JSON-RPC 2.0 foundation**: request envelope parsing
+  and method/id extraction for HTTP POST bodies, enabling
+  method-based routing for MCP/A2A-style traffic via the
+  `json_rpc` filter
+
 ### Planned
 
-The following capabilities are on the roadmap.
-None are implemented yet.
+The following capabilities are on the roadmap and not
+yet implemented:
 
 - **MCP proxying**: session management, tool discovery
   and routing, session lifecycle, auth and rate limiting
@@ -247,9 +254,6 @@ None are implemented yet.
   management, SSE streaming for Agent-to-Agent protocol
 - **Stateful agent sessions**: shared session storage,
   affinity, and lifecycle hooks for MCP and A2A
-- **JSON-RPC 2.0 foundation**: envelope parsing,
-  method-based routing, error mapping for both MCP and
-  A2A wire protocol
 
 ## Build Features
 

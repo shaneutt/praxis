@@ -8,8 +8,8 @@ mod tcp;
 
 pub use http::{
     AccessLogFilter, CompressionFilter, CorsFilter, ForwardedHeadersFilter, GuardrailsAction, GuardrailsFilter,
-    HeaderFilter, IpAclFilter, JsonBodyFieldFilter, LoadBalancerFilter, ModelToHeaderFilter, PathRewriteFilter,
-    RateLimitFilter, RedirectFilter, RequestIdFilter, RouterFilter, StaticResponseFilter, TimeoutFilter,
-    UrlRewriteFilter, normalize_mapped_ipv4, normalize_rewritten_path,
+    HeaderFilter, IpAclFilter, JsonBodyFieldFilter, JsonRpcFilter, LoadBalancerFilter, ModelToHeaderFilter,
+    PathRewriteFilter, RateLimitFilter, RedirectFilter, RequestIdFilter, RouterFilter, StaticResponseFilter,
+    TimeoutFilter, UrlRewriteFilter, normalize_mapped_ipv4, normalize_rewritten_path,
 };
 pub use tcp::{SniRouterFilter, TcpAccessLogFilter, TcpLoadBalancerFilter};
