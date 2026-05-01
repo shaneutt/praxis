@@ -144,8 +144,8 @@ impl HttpFilterContext<'_> {
     }
 
     /// Write a durable metadata value that persists across all phases.
-    pub fn set_metadata(&mut self, key: String, value: String) {
-        self.filter_metadata.insert(key, value);
+    pub fn set_metadata(&mut self, key: impl Into<String>, value: impl Into<String>) {
+        self.filter_metadata.insert(key.into(), value.into());
     }
 
     /// Upgrade the request body delivery mode for this request.
@@ -400,7 +400,7 @@ mod tests {
     fn set_metadata_then_get_returns_value() {
         let req = crate::test_utils::make_request(Method::GET, "/");
         let mut ctx = crate::test_utils::make_filter_context(&req);
-        ctx.set_metadata("mcp.method".to_owned(), "tools/call".to_owned());
+        ctx.set_metadata("mcp.method", "tools/call");
         assert_eq!(
             ctx.get_metadata("mcp.method"),
             Some("tools/call"),
@@ -412,8 +412,8 @@ mod tests {
     fn set_metadata_overwrites_existing() {
         let req = crate::test_utils::make_request(Method::GET, "/");
         let mut ctx = crate::test_utils::make_filter_context(&req);
-        ctx.set_metadata("a2a.method".to_owned(), "SendMessage".to_owned());
-        ctx.set_metadata("a2a.method".to_owned(), "GetTask".to_owned());
+        ctx.set_metadata("a2a.method", "SendMessage");
+        ctx.set_metadata("a2a.method", "GetTask");
         assert_eq!(
             ctx.get_metadata("a2a.method"),
             Some("GetTask"),
@@ -425,12 +425,26 @@ mod tests {
     fn metadata_independent_of_filter_results() {
         let req = crate::test_utils::make_request(Method::GET, "/");
         let mut ctx = crate::test_utils::make_filter_context(&req);
-        ctx.set_metadata("mcp.session_id".to_owned(), "gw-123".to_owned());
+        ctx.set_metadata("mcp.session_id", "gw-123");
         ctx.filter_results.clear();
         assert_eq!(
             ctx.get_metadata("mcp.session_id"),
             Some("gw-123"),
             "clearing filter_results should not affect metadata"
+        );
+    }
+
+    #[test]
+    fn set_metadata_accepts_owned_strings() {
+        let req = crate::test_utils::make_request(Method::GET, "/");
+        let mut ctx = crate::test_utils::make_filter_context(&req);
+        let key = "a2a.task_id".to_owned();
+        let value = "task-456".to_owned();
+        ctx.set_metadata(key, value);
+        assert_eq!(
+            ctx.get_metadata("a2a.task_id"),
+            Some("task-456"),
+            "set_metadata should accept owned Strings"
         );
     }
 }
