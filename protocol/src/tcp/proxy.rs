@@ -265,7 +265,7 @@ async fn resolve_connect_result(
     remote_addr: &str,
 ) -> Option<String> {
     match pipeline.execute_tcp_connect(ctx).await {
-        Ok(FilterAction::Continue | FilterAction::Release) => {
+        Ok(FilterAction::Continue | FilterAction::Release | FilterAction::BodyDone) => {
             if let Some(ref addr) = ctx.upstream_addr {
                 Some(addr.clone().into_owned())
             } else {
