@@ -8,7 +8,7 @@ description = "Protobuf and gRPC definitions for Praxis external processing"
 license.workspace = true
 repository.workspace = true
 readme = "../README.md"
-publish = true
+publish = false
 
 [lib]
 name = "praxis_proto"
