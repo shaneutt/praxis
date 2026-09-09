@@ -36,14 +36,25 @@ pub(super) fn validate_inline_clusters(
 ) -> Result<(), ProxyError> {
     for chain in chains {
         for entry in &chain.filters {
-            validate_entry(&chain.name, entry, insecure_options)?;
+            validate_entry(&chain.name, entry, insecure_options, 0)?;
         }
     }
     Ok(())
 }
 
 /// Validate one filter entry and recurse into its inline branch chains.
-fn validate_entry(chain_name: &str, entry: &FilterEntry, insecure_options: &InsecureOptions) -> Result<(), ProxyError> {
+///
+/// `depth` is the entry's nesting level (0 for a top-level chain filter);
+/// nested entries are bounded by [`nested_filter_depth`] so a config
+/// cannot drive this recursion without limit.
+///
+/// [`nested_filter_depth`]: super::nested_filter_depth
+fn validate_entry(
+    chain_name: &str,
+    entry: &FilterEntry,
+    insecure_options: &InsecureOptions,
+    depth: usize,
+) -> Result<(), ProxyError> {
     if CLUSTER_BEARING_FILTERS.contains(&entry.filter_type.as_str()) {
         let clusters = extract_clusters(chain_name, entry)?;
         validate_inline_names(chain_name, &entry.filter_type, &clusters)?;
@@ -58,16 +69,18 @@ fn validate_entry(chain_name: &str, entry: &FilterEntry, insecure_options: &Inse
     for branch in entry.branch_chains.as_deref().unwrap_or_default() {
         for chain_ref in &branch.chains {
             if let ChainRef::Inline { name, filters } = chain_ref {
+                let nested_depth = super::nested_filter_depth(depth, chain_name)?;
                 for nested in filters {
-                    validate_entry(name, nested, insecure_options)?;
+                    validate_entry(name, nested, insecure_options, nested_depth)?;
                 }
             }
         }
     }
 
     if entry.filter_type == STEP_BEARING_FILTER {
+        let nested_depth = super::nested_filter_depth(depth, chain_name)?;
         for nested in extract_step_filters(chain_name, entry)? {
-            validate_entry(chain_name, &nested, insecure_options)?;
+            validate_entry(chain_name, &nested, insecure_options, nested_depth)?;
         }
     }
     Ok(())
@@ -215,7 +228,44 @@ fn validate_inline_names(chain_name: &str, filter_type: &str, clusters: &[Cluste
     reason = "tests use unwrap/expect for brevity"
 )]
 mod tests {
-    use crate::config::{Config, FilterChainConfig, Listener};
+    use super::super::MAX_NESTED_FILTER_DEPTH;
+    use crate::config::{Config, FilterChainConfig, InsecureOptions, Listener};
+
+    /// YAML for `depth` nested `iterative_request_router` step filters,
+    /// innermost holding one ordinary filter, indented for a chain's
+    /// `filters:` list.
+    fn nested_step_filters(depth: usize) -> String {
+        let mut yaml = "- filter: request_id\n".to_owned();
+        for _ in 0..depth {
+            let inner: String = yaml.lines().map(|line| format!("            {line}\n")).collect();
+            yaml = format!("- filter: iterative_request_router\n  steps:\n    - name: s\n      filters:\n{inner}");
+        }
+        yaml.lines().map(|line| format!("      {line}\n")).collect()
+    }
+
+    /// Chains parsed from a config whose only chain holds `filters`.
+    fn chains_with_filters(filters: &str) -> Vec<FilterChainConfig> {
+        serde_yaml::from_str(&format!("- name: main\n  filters:\n{filters}")).expect("chain yaml")
+    }
+
+    #[test]
+    fn inline_cluster_walk_rejects_nesting_past_the_depth_limit() {
+        // Exercised directly: `Config::from_yaml` reaches the condition walk
+        // first, so only a direct call proves this walk is bounded too.
+        let chains = chains_with_filters(&nested_step_filters(MAX_NESTED_FILTER_DEPTH + 1));
+        let err = super::validate_inline_clusters(&chains, &InsecureOptions::default()).unwrap_err();
+        assert!(
+            err.to_string().contains("nesting depth"),
+            "the inline-cluster walk must stop at the nesting ceiling: {err}"
+        );
+    }
+
+    #[test]
+    fn inline_cluster_walk_accepts_nesting_at_the_depth_limit() {
+        let chains = chains_with_filters(&nested_step_filters(MAX_NESTED_FILTER_DEPTH));
+        super::validate_inline_clusters(&chains, &InsecureOptions::default())
+            .expect("step nesting at exactly the ceiling must still pass");
+    }
 
     /// Base YAML with an inline `load_balancer` cluster spliced in.
     fn config_with_inline_cluster(cluster_yaml: &str) -> String {

@@ -72,9 +72,9 @@ pub struct AccessLogFilter {
     /// Monotonic counter for deterministic sampling.
     counter: AtomicU64,
 
-    /// Sampling denominator: log 1 out of every N requests.
-    /// 1 means log everything (default).
-    sample_every: u64,
+    /// Requests logged out of every [`SAMPLE_SCALE`] requests.
+    /// [`SAMPLE_SCALE`] means log everything (default).
+    sample_numerator: u64,
 
     /// Selected fields and header projections.
     emit_plan: EmitPlan,
@@ -177,6 +177,11 @@ const DEFAULT_FIELDS: &[&str] = &[
 /// Header names rejected at config load time in v1.
 const SENSITIVE_HEADERS: &[&str] = &["authorization", "proxy-authorization", "cookie", "set-cookie"];
 
+/// Sampling window: `sample_rate` is held as a numerator over this
+/// denominator so any accepted rate is realized exactly over a window
+/// of this many requests.
+const SAMPLE_SCALE: u64 = 1_000_000; // one-in-a-million resolution
+
 // -----------------------------------------------------------------------------
 // Field projection
 // -----------------------------------------------------------------------------
@@ -274,12 +279,16 @@ impl AccessLogFilter {
             .iter()
             .any(|token| matches!(token, FieldToken::ResponseHeader(_)));
 
+        // A one-in-N denominator can only express reciprocal rates, so
+        // `0.75` would round to N=1 and log everything. Scaling the rate
+        // to a numerator over SAMPLE_SCALE keeps it exact instead.
         #[expect(
             clippy::cast_possible_truncation,
+            clippy::cast_precision_loss,
             clippy::cast_sign_loss,
-            reason = "sample rate truncation"
+            reason = "rate is in (0.0, 1.0] and the product is clamped to SAMPLE_SCALE"
         )]
-        let sample_every = (1.0 / cfg.sample_rate).round() as u64;
+        let sample_numerator = ((cfg.sample_rate * SAMPLE_SCALE as f64).round() as u64).clamp(1, SAMPLE_SCALE);
 
         let is_default = cfg.fields.is_none();
         let emit_plan = EmitPlan {
@@ -288,7 +297,7 @@ impl AccessLogFilter {
         };
 
         Ok(Self {
-            sample_every,
+            sample_numerator,
             counter: AtomicU64::default(),
             emit_plan,
             emit_conditions: cfg.conditions,
@@ -297,13 +306,17 @@ impl AccessLogFilter {
     }
 
     /// Returns `true` if this request should be logged (sampling check).
+    ///
+    /// Deterministic: request `n` is logged when the running quota
+    /// `floor(n * rate)` advances, which emits exactly
+    /// `sample_numerator` records per [`SAMPLE_SCALE`] requests for
+    /// every accepted rate, not just reciprocal ones.
     fn should_log(&self) -> bool {
-        if self.sample_every <= 1 {
+        if self.sample_numerator >= SAMPLE_SCALE {
             return true;
         }
-        self.counter
-            .fetch_add(1, Ordering::Relaxed)
-            .is_multiple_of(self.sample_every)
+        let index = self.counter.fetch_add(1, Ordering::Relaxed) % SAMPLE_SCALE;
+        (index * self.sample_numerator) / SAMPLE_SCALE < ((index + 1) * self.sample_numerator) / SAMPLE_SCALE
     }
 
     /// Returns `true` for responses that Pingora delivers without a body phase.
@@ -869,6 +882,15 @@ mod tests {
         AccessLogFilter::build(cfg).unwrap()
     }
 
+    fn filter_with_sample_rate(rate: f64) -> AccessLogFilter {
+        let yaml: serde_yaml::Value = serde_yaml::from_str(&format!("sample_rate: {rate}")).unwrap();
+        test_filter(&yaml)
+    }
+
+    fn count_logged(filter: &AccessLogFilter, requests: usize) -> usize {
+        (0..requests).filter(|_| filter.should_log()).count()
+    }
+
     #[test]
     fn from_config_defaults_to_log_all() {
         let config = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
@@ -1052,7 +1074,7 @@ conditions:
     #[test]
     fn should_log_every_request_by_default() {
         let filter = AccessLogFilter {
-            sample_every: 1,
+            sample_numerator: SAMPLE_SCALE,
             counter: AtomicU64::default(),
             emit_plan: EmitPlan {
                 fields: vec![],
@@ -1062,14 +1084,14 @@ conditions:
             needs_response_headers: false,
         };
         for _ in 0..5 {
-            assert!(filter.should_log(), "sample_every=1 should log every request");
+            assert!(filter.should_log(), "a full sample rate should log every request");
         }
     }
 
     #[test]
     fn should_log_samples_at_rate() {
         let filter = AccessLogFilter {
-            sample_every: 4,
+            sample_numerator: SAMPLE_SCALE / 4,
             counter: AtomicU64::default(),
             emit_plan: EmitPlan {
                 fields: vec![],
@@ -1088,6 +1110,50 @@ conditions:
     }
 
     #[test]
+    fn should_log_honors_non_reciprocal_sample_rate() {
+        // A one-in-N denominator would round 0.75 to N=1 and log every
+        // request; the configured fraction must be realized as written.
+        let filter = filter_with_sample_rate(0.75);
+        let logged = count_logged(&filter, 100);
+        assert_eq!(logged, 75, "sample_rate 0.75 should log 75 of 100 requests");
+    }
+
+    #[test]
+    fn should_log_honors_repeating_sample_rate() {
+        // 1/0.33 rounds to 3, which would log 33.3% instead of 33%.
+        let filter = filter_with_sample_rate(0.33);
+        let logged = count_logged(&filter, 100);
+        assert_eq!(logged, 33, "sample_rate 0.33 should log 33 of 100 requests");
+    }
+
+    #[test]
+    fn should_log_full_rate_logs_every_request() {
+        let filter = filter_with_sample_rate(1.0);
+        let logged = count_logged(&filter, 100);
+        assert_eq!(logged, 100, "sample_rate 1.0 should log every request");
+    }
+
+    #[test]
+    fn should_log_smallest_reciprocal_rate_still_samples() {
+        let filter = filter_with_sample_rate(0.01);
+        let logged = count_logged(&filter, 100);
+        assert_eq!(logged, 1, "sample_rate 0.01 should log 1 of 100 requests");
+    }
+
+    #[test]
+    fn build_clamps_sub_resolution_sample_rate_to_one_record() {
+        // Below the sampling resolution the rate must still log something
+        // rather than collapsing to a numerator of zero (log nothing).
+        let filter = filter_with_sample_rate(1e-9);
+        assert_eq!(filter.sample_numerator, 1, "sub-resolution rate should clamp to 1");
+        assert_eq!(
+            count_logged(&filter, usize::try_from(SAMPLE_SCALE).unwrap()),
+            1,
+            "the clamped rate should still emit one record per window"
+        );
+    }
+
+    #[test]
     fn status_class_or_matching() {
         assert!(StatusClass::ServerError.matches(500));
         assert!(StatusClass::ClientError.matches(404));
@@ -1097,7 +1163,7 @@ conditions:
     #[test]
     fn passes_emit_conditions_and_sampling_order() {
         let filter = AccessLogFilter {
-            sample_every: 1,
+            sample_numerator: SAMPLE_SCALE,
             counter: AtomicU64::default(),
             emit_plan: EmitPlan {
                 fields: vec![FieldToken::Method],
@@ -1254,7 +1320,7 @@ conditions:
     #[tokio::test]
     async fn on_response_continues_with_no_header() {
         let filter = AccessLogFilter {
-            sample_every: 1,
+            sample_numerator: SAMPLE_SCALE,
             counter: AtomicU64::default(),
             emit_plan: EmitPlan {
                 fields: vec![],
@@ -1278,7 +1344,7 @@ conditions:
         use praxis_core::connectivity::{ConnectionOptions, Upstream};
 
         let filter = AccessLogFilter {
-            sample_every: 1,
+            sample_numerator: SAMPLE_SCALE,
             counter: AtomicU64::default(),
             emit_plan: EmitPlan {
                 fields: vec![],
@@ -1318,7 +1384,7 @@ conditions:
     #[tokio::test]
     async fn on_response_stores_state_in_filter_state() {
         let filter = AccessLogFilter {
-            sample_every: 1,
+            sample_numerator: SAMPLE_SCALE,
             counter: AtomicU64::default(),
             emit_plan: EmitPlan {
                 fields: vec![],
@@ -1346,7 +1412,7 @@ conditions:
     #[tokio::test]
     async fn on_response_no_header_skips_filter_state() {
         let filter = AccessLogFilter {
-            sample_every: 1,
+            sample_numerator: SAMPLE_SCALE,
             counter: AtomicU64::default(),
             emit_plan: EmitPlan {
                 fields: vec![],
@@ -1408,7 +1474,7 @@ conditions:
     #[tokio::test]
     async fn on_response_stores_status_for_bodyless() {
         let filter = AccessLogFilter {
-            sample_every: 1,
+            sample_numerator: SAMPLE_SCALE,
             counter: AtomicU64::default(),
             emit_plan: EmitPlan {
                 fields: vec![],
@@ -1436,7 +1502,7 @@ conditions:
     #[test]
     fn on_response_body_continues_before_end_of_stream() {
         let filter = AccessLogFilter {
-            sample_every: 1,
+            sample_numerator: SAMPLE_SCALE,
             counter: AtomicU64::default(),
             emit_plan: EmitPlan {
                 fields: vec![],
@@ -1460,7 +1526,7 @@ conditions:
     #[expect(clippy::too_many_lines, reason = "integration-style filter context setup")]
     async fn on_response_body_uses_status_from_on_response() {
         let filter = AccessLogFilter {
-            sample_every: 1,
+            sample_numerator: SAMPLE_SCALE,
             counter: AtomicU64::default(),
             emit_plan: EmitPlan {
                 fields: vec![],
@@ -1498,7 +1564,7 @@ conditions:
     #[test]
     fn response_body_access_is_read_only() {
         let filter = AccessLogFilter {
-            sample_every: 1,
+            sample_numerator: SAMPLE_SCALE,
             counter: AtomicU64::default(),
             emit_plan: EmitPlan {
                 fields: vec![],
