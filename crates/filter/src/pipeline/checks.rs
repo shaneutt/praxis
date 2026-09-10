@@ -26,22 +26,6 @@ use crate::{any_filter::AnyFilter, body::BodyAccess};
 // Constants
 // -----------------------------------------------------------------------------
 
-/// Filters classified as security-critical (bypass risk when conditional).
-const SECURITY_FILTERS: &[&str] = &[
-    #[cfg(feature = "basic-auth-filter")]
-    "basic_auth",
-    "cors",
-    "credential_injection",
-    "csrf",
-    "forwarded_headers",
-    "guardrails",
-    "ip_acl",
-    "peer_identity_trust",
-    #[cfg(feature = "policy-engine")]
-    "policy",
-    "rate_limit",
-];
-
 /// Filters that rewrite the request path.
 const REWRITE_FILTERS: &[&str] = &["path_rewrite", "url_rewrite"];
 
@@ -120,7 +104,7 @@ pub(super) fn check_unconditional_static_response(
 /// Security filters with request conditions (bypass risk).
 pub(super) fn check_conditional_security(names: &[&str], filters: &[PipelineFilter], errors: &mut Vec<String>) {
     for (i, (name, pf)) in names.iter().zip(filters).enumerate() {
-        if SECURITY_FILTERS.contains(name) && !pf.conditions.is_empty() {
+        if pf.is_security && !pf.conditions.is_empty() {
             errors.push(format!(
                 "security filter '{name}' at position {i} has \
                  request conditions; it will be bypassed for \
@@ -140,7 +124,7 @@ pub(super) fn check_open_security_filters(
     errors: &mut Vec<String>,
 ) {
     for (i, (name, pf)) in names.iter().zip(filters).enumerate() {
-        if SECURITY_FILTERS.contains(name) && pf.failure_mode == FailureMode::Open {
+        if pf.is_security && pf.failure_mode == FailureMode::Open {
             let msg = format!(
                 "security filter '{name}' at position {i} has \
                  failure_mode: open; runtime errors will bypass \
@@ -360,8 +344,8 @@ pub(super) fn check_skip_to_bypasses_security(filters: &[PipelineFilter], errors
                 .skip(i + 1)
                 .take(target.saturating_sub(i + 1))
             {
-                let name = skipped.filter.name();
-                if SECURITY_FILTERS.contains(&name) {
+                if skipped.is_security {
+                    let name = skipped.filter.name();
                     errors.push(format!(
                         "branch '{branch}' on filter at position {i} \
                          uses SkipTo rejoin that bypasses security \
@@ -406,8 +390,8 @@ pub(super) fn check_terminal_rejoin_bypasses_security(filters: &[PipelineFilter]
             continue;
         }
         for (later_idx, later) in filters.iter().enumerate().skip(i + 1) {
-            let name = later.filter.name();
-            if SECURITY_FILTERS.contains(&name) {
+            if later.is_security {
+                let name = later.filter.name();
                 errors.push(format!(
                     "filter at position {i} has a Terminal branch that forwards upstream (a \
                      cluster is selected in the sub-chain or earlier in the pipeline), \
@@ -570,20 +554,6 @@ mod tests {
         branch::ResolvedBranch,
         test_filters::{lb_filter, noop_filter_with_conditions, selector_filter},
     };
-
-    #[test]
-    fn security_filter_list_matches_registry_metadata() {
-        let registry = crate::FilterRegistry::with_builtins();
-        let mut expected = registry.security_filters();
-        let mut actual = SECURITY_FILTERS.to_vec();
-        expected.sort_unstable();
-        actual.sort_unstable();
-
-        assert_eq!(
-            actual, expected,
-            "pipeline checks and registry security metadata diverged"
-        );
-    }
 
     #[test]
     fn invalid_condition_header_name_rejected_at_build() {
@@ -842,7 +812,7 @@ mod tests {
     #[test]
     fn conditional_security_filter_errors() {
         let names = vec!["ip_acl"];
-        let filters = vec![make_pf(vec![make_condition()])];
+        let filters = vec![make_security_pf(vec![make_condition()])];
         let mut errors = Vec::new();
         check_conditional_security(&names, &filters, &mut errors);
         assert_eq!(errors.len(), 1, "should produce exactly one error");
@@ -856,7 +826,7 @@ mod tests {
     #[test]
     fn unconditional_security_filter_no_error() {
         let names = vec!["ip_acl"];
-        let filters = vec![make_pf(vec![])];
+        let filters = vec![make_security_pf(vec![])];
         let mut errors = Vec::new();
         check_conditional_security(&names, &filters, &mut errors);
         assert!(errors.is_empty(), "unconditional security filter should not error");
@@ -865,7 +835,7 @@ mod tests {
     #[test]
     fn open_security_filter_errors() {
         let names = vec!["ip_acl"];
-        let mut pf = make_pf(vec![]);
+        let mut pf = make_security_pf(vec![]);
         pf.failure_mode = FailureMode::Open;
         let filters = vec![pf];
         let mut errors = Vec::new();
@@ -881,7 +851,7 @@ mod tests {
     #[test]
     fn open_security_filter_allowed_demotes_to_warning() {
         let names = vec!["ip_acl"];
-        let mut pf = make_pf(vec![]);
+        let mut pf = make_security_pf(vec![]);
         pf.failure_mode = FailureMode::Open;
         let filters = vec![pf];
         let mut errors = Vec::new();
@@ -892,7 +862,7 @@ mod tests {
     #[test]
     fn closed_security_filter_no_error() {
         let names = vec!["ip_acl"];
-        let filters = vec![make_pf(vec![])];
+        let filters = vec![make_security_pf(vec![])];
         let mut errors = Vec::new();
         check_open_security_filters(&names, &filters, false, &mut errors);
         assert!(errors.is_empty(), "closed security filter should not error");
@@ -901,7 +871,7 @@ mod tests {
     #[test]
     fn open_forwarded_headers_filter_errors() {
         let names = vec!["forwarded_headers"];
-        let mut pf = make_pf(vec![]);
+        let mut pf = make_security_pf(vec![]);
         pf.failure_mode = FailureMode::Open;
         let filters = vec![pf];
         let mut errors = Vec::new();
@@ -917,7 +887,7 @@ mod tests {
     #[test]
     fn open_forwarded_headers_allowed_demotes_to_warning() {
         let names = vec!["forwarded_headers"];
-        let mut pf = make_pf(vec![]);
+        let mut pf = make_security_pf(vec![]);
         pf.failure_mode = FailureMode::Open;
         let filters = vec![pf];
         let mut errors = Vec::new();
@@ -937,6 +907,51 @@ mod tests {
         let mut errors = Vec::new();
         check_open_security_filters(&names, &filters, false, &mut errors);
         assert!(errors.is_empty(), "open non-security filter should not error");
+    }
+
+    #[test]
+    fn open_filter_named_like_builtin_without_class_no_error() {
+        // Classification is the registry SecurityClass stamp, not the type name.
+        let names = vec!["ip_acl"];
+        let mut pf = named_noop_filter("ip_acl", vec![]);
+        pf.failure_mode = FailureMode::Open;
+        let filters = vec![pf];
+        let mut errors = Vec::new();
+        check_open_security_filters(&names, &filters, false, &mut errors);
+        assert!(
+            errors.is_empty(),
+            "a filter named like a builtin security filter is not checked without is_security"
+        );
+    }
+
+    #[test]
+    fn open_custom_security_filter_errors() {
+        let names = vec!["my_auth"];
+        let mut pf = security_noop_filter("my_auth", vec![]);
+        pf.failure_mode = FailureMode::Open;
+        let filters = vec![pf];
+        let mut errors = Vec::new();
+        check_open_security_filters(&names, &filters, false, &mut errors);
+        assert_eq!(errors.len(), 1, "custom Security-class filters must be checked");
+        assert!(
+            errors[0].contains("my_auth") && errors[0].contains("failure_mode: open"),
+            "error should name the custom security filter: {}",
+            errors[0]
+        );
+    }
+
+    #[test]
+    fn conditional_custom_security_filter_errors() {
+        let names = vec!["my_auth"];
+        let filters = vec![security_noop_filter("my_auth", vec![make_condition()])];
+        let mut errors = Vec::new();
+        check_conditional_security(&names, &filters, &mut errors);
+        assert_eq!(errors.len(), 1, "custom Security-class filters must be checked");
+        assert!(
+            errors[0].contains("my_auth"),
+            "error should name the custom security filter: {}",
+            errors[0]
+        );
     }
 
     #[test]
@@ -1388,7 +1403,7 @@ mod tests {
     fn skip_to_bypassing_security_filter_errors() {
         let mut f0 = named_noop_filter("headers", vec![]);
         f0.branches = vec![make_skip_branch("skip", 2)];
-        let f1 = named_noop_filter("ip_acl", vec![]);
+        let f1 = security_noop_filter("ip_acl", vec![]);
         let f2 = named_noop_filter("load_balancer", vec![]);
         let filters = vec![f0, f1, f2];
         let mut errors = Vec::new();
@@ -1405,8 +1420,8 @@ mod tests {
     fn skip_to_bypassing_multiple_security_filters_reports_each() {
         let mut f0 = named_noop_filter("headers", vec![]);
         f0.branches = vec![make_skip_branch("big_skip", 3)];
-        let f1 = named_noop_filter("ip_acl", vec![]);
-        let f2 = named_noop_filter("cors", vec![]);
+        let f1 = security_noop_filter("ip_acl", vec![]);
+        let f2 = security_noop_filter("cors", vec![]);
         let f3 = named_noop_filter("load_balancer", vec![]);
         let filters = vec![f0, f1, f2, f3];
         let mut errors = Vec::new();
@@ -1430,11 +1445,28 @@ mod tests {
     }
 
     #[test]
+    fn skip_to_bypassing_custom_security_filter_errors() {
+        let mut f0 = named_noop_filter("headers", vec![]);
+        f0.branches = vec![make_skip_branch("skip", 2)];
+        let f1 = security_noop_filter("my_auth", vec![]);
+        let f2 = named_noop_filter("load_balancer", vec![]);
+        let filters = vec![f0, f1, f2];
+        let mut errors = Vec::new();
+        check_skip_to_bypasses_security(&filters, &mut errors);
+        assert_eq!(errors.len(), 1, "SkipTo over a custom Security filter must error");
+        assert!(
+            errors[0].contains("my_auth"),
+            "error should name the custom security filter: {}",
+            errors[0]
+        );
+    }
+
+    #[test]
     fn skip_to_landing_on_security_filter_no_error() {
         let mut f0 = named_noop_filter("headers", vec![]);
         f0.branches = vec![make_skip_branch("skip", 2)];
         let f1 = named_noop_filter("request_id", vec![]);
-        let f2 = named_noop_filter("ip_acl", vec![]);
+        let f2 = security_noop_filter("ip_acl", vec![]);
         let filters = vec![f0, f1, f2];
         let mut errors = Vec::new();
         check_skip_to_bypasses_security(&filters, &mut errors);
@@ -1448,7 +1480,7 @@ mod tests {
     fn no_branches_no_skip_to_error() {
         let filters = vec![
             named_noop_filter("headers", vec![]),
-            named_noop_filter("ip_acl", vec![]),
+            security_noop_filter("ip_acl", vec![]),
         ];
         let mut errors = Vec::new();
         check_skip_to_bypasses_security(&filters, &mut errors);
@@ -1565,6 +1597,20 @@ mod tests {
     /// Build a [`PipelineFilter`] with the given conditions.
     fn make_pf(conditions: Vec<Condition>) -> PipelineFilter {
         named_noop_filter("noop", conditions)
+    }
+
+    /// Build a security-class [`PipelineFilter`] with the given conditions.
+    fn make_security_pf(conditions: Vec<Condition>) -> PipelineFilter {
+        let mut pf = make_pf(conditions);
+        pf.is_security = true;
+        pf
+    }
+
+    /// Build a security-class noop named `name`.
+    fn security_noop_filter(name: &'static str, conditions: Vec<Condition>) -> PipelineFilter {
+        let mut pf = named_noop_filter(name, conditions);
+        pf.is_security = true;
+        pf
     }
 
     fn named_noop_filter(name: &'static str, conditions: Vec<Condition>) -> PipelineFilter {
@@ -1687,7 +1733,7 @@ mod tests {
     fn terminal_routing_branch_before_security_filter_errors() {
         let mut host = named_noop_filter("classifier", vec![]);
         host.branches = vec![make_terminal_branch("route", vec![cluster_selecting_filter()])];
-        let ip_acl = named_noop_filter("ip_acl", vec![]);
+        let ip_acl = security_noop_filter("ip_acl", vec![]);
         let filters = vec![host, ip_acl];
         let mut errors = Vec::new();
         check_terminal_rejoin_bypasses_security(&filters, &mut errors);
@@ -1710,7 +1756,7 @@ mod tests {
             "br",
             vec![named_noop_filter("request_id", vec![])],
         )];
-        let ip_acl = named_noop_filter("ip_acl", vec![]);
+        let ip_acl = security_noop_filter("ip_acl", vec![]);
         let filters = vec![host, ip_acl];
         let mut errors = Vec::new();
         check_terminal_rejoin_bypasses_security(&filters, &mut errors);
@@ -1732,7 +1778,7 @@ mod tests {
             "br",
             vec![named_noop_filter("request_id", vec![])],
         )];
-        let ip_acl = named_noop_filter("ip_acl", vec![]);
+        let ip_acl = security_noop_filter("ip_acl", vec![]);
         let filters = vec![selector, host, ip_acl];
         let mut errors = Vec::new();
         check_terminal_rejoin_bypasses_security(&filters, &mut errors);
@@ -1764,7 +1810,7 @@ mod tests {
         }];
         let mut terminal_host = named_noop_filter("headers", vec![]);
         terminal_host.branches = vec![make_terminal_branch("stop", vec![])];
-        let ip_acl = named_noop_filter("ip_acl", vec![]);
+        let ip_acl = security_noop_filter("ip_acl", vec![]);
         let filters = vec![selector_host, terminal_host, ip_acl];
         let mut errors = Vec::new();
         check_terminal_rejoin_bypasses_security(&filters, &mut errors);
@@ -1782,7 +1828,7 @@ mod tests {
 
     #[test]
     fn terminal_routing_branch_after_security_filter_no_error() {
-        let ip_acl = named_noop_filter("ip_acl", vec![]);
+        let ip_acl = security_noop_filter("ip_acl", vec![]);
         let mut host = named_noop_filter("classifier", vec![]);
         host.branches = vec![make_terminal_branch("route", vec![cluster_selecting_filter()])];
         // ip_acl runs before the routing branch, so it is not bypassed.
@@ -1792,6 +1838,26 @@ mod tests {
         assert!(
             errors.is_empty(),
             "security filter before the branch is not bypassed: {errors:?}"
+        );
+    }
+
+    #[test]
+    fn terminal_routing_branch_before_custom_security_filter_errors() {
+        let mut host = named_noop_filter("classifier", vec![]);
+        host.branches = vec![make_terminal_branch("route", vec![cluster_selecting_filter()])];
+        let my_auth = security_noop_filter("my_auth", vec![]);
+        let filters = vec![host, my_auth];
+        let mut errors = Vec::new();
+        check_terminal_rejoin_bypasses_security(&filters, &mut errors);
+        assert_eq!(
+            errors.len(),
+            1,
+            "a terminal routing branch before a custom Security filter must be flagged"
+        );
+        assert!(
+            errors[0].contains("my_auth") && errors[0].contains("bypassing"),
+            "error should name the bypassed custom security filter: {}",
+            errors[0]
         );
     }
 }

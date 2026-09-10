@@ -52,6 +52,7 @@ pub(in crate::pipeline) fn noop_filter_with_conditions(
 fn capability_filter(filter: CapabilityFilter) -> PipelineFilter {
     PipelineFilter {
         filter_id: 0,
+        is_security: false,
         branches: vec![],
         conditions: vec![],
         failure_mode: FailureMode::default(),
@@ -94,6 +95,7 @@ impl HttpFilter for CapabilityFilter {
 pub(in crate::pipeline) fn streaming_capable_filter() -> PipelineFilter {
     PipelineFilter {
         filter_id: 0,
+        is_security: false,
         branches: vec![],
         conditions: vec![],
         failure_mode: FailureMode::default(),

@@ -420,6 +420,7 @@ mod tests {
 
         let branch_filter = PipelineFilter {
             filter_id: 100,
+            is_security: false,
             branches: vec![],
             conditions: vec![],
             failure_mode: FailureMode::default(),
@@ -436,6 +437,7 @@ mod tests {
         };
         let parent = PipelineFilter {
             filter_id: 0,
+            is_security: false,
             branches: vec![branch],
             conditions: vec![],
             failure_mode: FailureMode::default(),
@@ -500,6 +502,7 @@ mod tests {
         };
         let parent = PipelineFilter {
             filter_id: 0,
+            is_security: false,
             branches: vec![branch],
             conditions: vec![],
             failure_mode: FailureMode::default(),
@@ -534,6 +537,7 @@ mod tests {
         };
         let parent = PipelineFilter {
             filter_id: 0,
+            is_security: false,
             branches: vec![branch],
             conditions: vec![],
             failure_mode: FailureMode::default(),

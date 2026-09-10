@@ -63,6 +63,15 @@ pub(crate) struct PipelineFilter {
     /// [`HttpFilterContext::filter_state`]: crate::HttpFilterContext::filter_state
     pub(crate) filter_id: usize,
 
+    /// Whether this filter type is [`SecurityClass::Security`].
+    ///
+    /// Stamped at pipeline build from the registry after `create`
+    /// succeeds. Config-time checks (fail-open, conditions, `SkipTo`,
+    /// `Terminal` rejoin) use this bit instead of a hardcoded name list.
+    ///
+    /// [`SecurityClass::Security`]: crate::SecurityClass::Security
+    pub(crate) is_security: bool,
+
     /// Response-phase conditions.
     pub(crate) response_conditions: Vec<ResponseCondition>,
 }
@@ -93,6 +102,7 @@ impl PipelineFilter {
             failure_mode: FailureMode::default(),
             filter,
             filter_id,
+            is_security: false,
             response_conditions,
         }
     }

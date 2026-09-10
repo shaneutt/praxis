@@ -665,6 +665,7 @@ mod tests {
         let inner_branch = make_branch("inner", None, RejoinTarget::Terminal, None, vec![]);
         let outer_filter = PipelineFilter {
             filter_id: 100,
+            is_security: false,
             branches: vec![inner_branch],
             conditions: vec![],
             failure_mode: FailureMode::default(),
@@ -794,6 +795,7 @@ mod tests {
         let branch_pf_id = NEXT_TEST_ID.fetch_add(1, Ordering::SeqCst);
         let branch_pf = PipelineFilter {
             filter_id: branch_pf_id,
+            is_security: false,
             branches: vec![],
             conditions: vec![],
             failure_mode: FailureMode::default(),
@@ -829,6 +831,7 @@ mod tests {
         let branch_id = NEXT_TEST_ID.fetch_add(1, Ordering::SeqCst);
         let branch_pf = PipelineFilter {
             filter_id: branch_id,
+            is_security: false,
             branches: vec![],
             conditions: vec![],
             failure_mode: FailureMode::default(),
@@ -948,6 +951,7 @@ mod tests {
         let inner_branch = make_branch("inner_skip", None, RejoinTarget::SkipTo(42), None, vec![]);
         let outer_filter = PipelineFilter {
             filter_id: NEXT_TEST_ID.fetch_add(1, Ordering::SeqCst),
+            is_security: false,
             branches: vec![inner_branch],
             conditions: vec![],
             failure_mode: FailureMode::default(),
@@ -1058,6 +1062,7 @@ mod tests {
     fn counting_pf(counter: Arc<AtomicUsize>) -> PipelineFilter {
         PipelineFilter {
             filter_id: NEXT_TEST_ID.fetch_add(1, Ordering::SeqCst),
+            is_security: false,
             branches: vec![],
             conditions: vec![],
             failure_mode: FailureMode::default(),
@@ -1071,6 +1076,7 @@ mod tests {
     fn reject_pf(status: u16) -> PipelineFilter {
         PipelineFilter {
             filter_id: NEXT_TEST_ID.fetch_add(1, Ordering::SeqCst),
+            is_security: false,
             branches: vec![],
             conditions: vec![],
             failure_mode: FailureMode::default(),
@@ -1084,6 +1090,7 @@ mod tests {
     fn error_pf(failure_mode: FailureMode) -> PipelineFilter {
         PipelineFilter {
             filter_id: NEXT_TEST_ID.fetch_add(1, Ordering::SeqCst),
+            is_security: false,
             branches: vec![],
             conditions: vec![],
             failure_mode,
@@ -1097,6 +1104,7 @@ mod tests {
     fn stateful_pf(id: u64, log: &ObsLog) -> PipelineFilter {
         PipelineFilter {
             filter_id: NEXT_TEST_ID.fetch_add(1, Ordering::SeqCst),
+            is_security: false,
             branches: vec![],
             conditions: vec![],
             failure_mode: FailureMode::default(),
@@ -1145,6 +1153,7 @@ mod tests {
 
         let streaming_pf = PipelineFilter {
             filter_id: 99,
+            is_security: false,
             branches: vec![],
             conditions: vec![],
             failure_mode: FailureMode::default(),

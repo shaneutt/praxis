@@ -171,6 +171,7 @@ fn build_filters(
             mem::take(&mut entry.response_conditions),
         );
         pf.failure_mode = entry.failure_mode;
+        pf.is_security = registry.is_security_filter(&entry.filter_type);
         pf.name = entry.name.as_ref().map(|n| Arc::from(n.as_str()));
         branch_configs.push(entry.branch_chains.take());
         filters.push(pf);

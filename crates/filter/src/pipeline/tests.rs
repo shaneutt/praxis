@@ -3,15 +3,18 @@
 
 //! Tests for pipeline construction, body capabilities, execution, and ordering warnings.
 
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, AtomicUsize, Ordering},
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
 };
 
 use ::http::{HeaderMap, Method, StatusCode};
 use async_trait::async_trait;
 use bytes::Bytes;
-use praxis_core::config::{FailureMode, SkipPipelineChecks};
+use praxis_core::config::{BranchChainConfig, ChainRef, FailureMode, SkipPipelineChecks};
 
 use super::{
     FilterPipeline,
@@ -20,7 +23,8 @@ use super::{
     filter::PipelineFilter,
 };
 use crate::{
-    FilterAction, FilterEntry, FilterError, FilterRegistry, StreamingResponseBody, StreamingTerminalResponse,
+    FilterAction, FilterEntry, FilterError, FilterFactory, FilterRegistry, SecurityClass, StreamingResponseBody,
+    StreamingTerminalResponse,
     any_filter::AnyFilter,
     body::{BodyAccess, BodyCapabilities, BodyMode},
     filter::HttpFilter,
@@ -1238,6 +1242,130 @@ fn allow_open_forwarded_headers_with_insecure_flag() {
             .iter()
             .any(|e| e.contains("failure_mode: open") && e.contains("forwarded_headers")),
         "insecure flag should demote open forwarded_headers error to warning: {errors:?}"
+    );
+}
+
+#[test]
+fn build_stamps_is_security_from_registry_class() {
+    let mut registry = FilterRegistry::with_builtins();
+    register_named_filter(&mut registry, "my_auth", SecurityClass::Security);
+    register_named_filter(&mut registry, "my_logger", SecurityClass::Standard);
+    let mut entries = vec![
+        named_noop_entry("my_auth", FailureMode::default()),
+        named_noop_entry("my_logger", FailureMode::default()),
+    ];
+    let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
+    assert!(
+        pipeline.filters[0].is_security,
+        "Security-class registration must stamp is_security at build"
+    );
+    assert!(
+        !pipeline.filters[1].is_security,
+        "Standard-class registration must not stamp is_security"
+    );
+}
+
+#[test]
+fn build_with_chains_stamps_is_security_on_branch_filter() {
+    let mut registry = FilterRegistry::with_builtins();
+    register_named_filter(&mut registry, "my_auth", SecurityClass::Security);
+    let mut entries = vec![FilterEntry {
+        branch_chains: Some(vec![BranchChainConfig {
+            chains: vec![ChainRef::Inline {
+                name: "auth_chain".to_owned(),
+                filters: vec![named_noop_entry("my_auth", FailureMode::default())],
+            }],
+            max_iterations: None,
+            name: "auth_branch".to_owned(),
+            on_result: None,
+            rejoin: "next".to_owned(),
+        }]),
+        ..named_noop_entry("request_id", FailureMode::default())
+    }];
+    let chains: HashMap<&str, &[FilterEntry]> = HashMap::new();
+    let pipeline = FilterPipeline::build_with_chains(&mut entries, &registry, &chains).unwrap();
+    assert_eq!(
+        pipeline.filters.len(),
+        1,
+        "top-level host should be the only parent filter"
+    );
+    assert!(
+        !pipeline.filters[0].is_security,
+        "host request_id is Standard and must not be stamped Security"
+    );
+    assert_eq!(pipeline.filters[0].branches.len(), 1, "host should carry one branch");
+    assert_eq!(
+        pipeline.filters[0].branches[0].filters.len(),
+        1,
+        "branch sub-chain should contain the custom Security filter"
+    );
+    assert!(
+        pipeline.filters[0].branches[0].filters[0].is_security,
+        "Security-class filter inside a branch must be stamped by build_with_chains"
+    );
+}
+
+#[test]
+fn errors_open_custom_security_filter() {
+    let mut registry = FilterRegistry::with_builtins();
+    register_named_filter(&mut registry, "my_auth", SecurityClass::Security);
+    let mut entries = vec![named_noop_entry("my_auth", FailureMode::Open)];
+    let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
+    let errors = pipeline.ordering_errors(&entries, false, &SkipPipelineChecks::default());
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.contains("failure_mode: open") && e.contains("my_auth")),
+        "custom Security-class filter with failure_mode: open must error: {errors:?}"
+    );
+}
+
+#[test]
+fn allow_open_custom_security_filter_with_insecure_flag() {
+    let mut registry = FilterRegistry::with_builtins();
+    register_named_filter(&mut registry, "my_auth", SecurityClass::Security);
+    let mut entries = vec![named_noop_entry("my_auth", FailureMode::Open)];
+    let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
+    let errors = pipeline.ordering_errors(&entries, true, &SkipPipelineChecks::default());
+    assert!(
+        !errors.iter().any(|e| e.contains("failure_mode: open")),
+        "insecure flag should demote open custom security filter error to warning: {errors:?}"
+    );
+}
+
+#[test]
+fn no_error_open_custom_standard_filter() {
+    let mut registry = FilterRegistry::with_builtins();
+    register_named_filter(&mut registry, "my_logger", SecurityClass::Standard);
+    let mut entries = vec![named_noop_entry("my_logger", FailureMode::Open)];
+    let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
+    let errors = pipeline.ordering_errors(&entries, false, &SkipPipelineChecks::default());
+    assert!(
+        !errors.iter().any(|e| e.contains("failure_mode: open")),
+        "Standard-class custom filter with failure_mode: open must not error: {errors:?}"
+    );
+}
+
+#[test]
+fn errors_conditional_custom_security_filter() {
+    let mut registry = FilterRegistry::with_builtins();
+    register_named_filter(&mut registry, "my_auth", SecurityClass::Security);
+    let mut entries = vec![FilterEntry {
+        branch_chains: None,
+        conditions: vec![when_path("/api")],
+        filter_type: "my_auth".into(),
+        config: serde_yaml::Value::Null,
+        name: None,
+        response_conditions: vec![],
+        failure_mode: FailureMode::default(),
+    }];
+    let pipeline = FilterPipeline::build(&mut entries, &registry).unwrap();
+    let errors = pipeline.ordering_errors(&entries, false, &SkipPipelineChecks::default());
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.contains("security filter") && e.contains("my_auth")),
+        "custom Security-class filter with request conditions must error: {errors:?}"
     );
 }
 
@@ -2862,6 +2990,20 @@ impl HttpFilter for PassthroughFilter {
     }
 }
 
+/// Noop whose [`HttpFilter::name`] matches the registered type name.
+struct NamedNoopFilter(&'static str);
+
+#[async_trait]
+impl HttpFilter for NamedNoopFilter {
+    fn name(&self) -> &'static str {
+        self.0
+    }
+
+    async fn on_request(&self, _ctx: &mut crate::HttpFilterContext<'_>) -> Result<FilterAction, FilterError> {
+        Ok(FilterAction::Continue)
+    }
+}
+
 /// A filter that immediately rejects all requests.
 struct RejectFilter;
 
@@ -3505,7 +3647,7 @@ impl HttpFilter for GatedRecordingBodyFilter {
 
 /// Build a single `when: headers: {header: value}` request condition.
 fn gate_condition(header: &str, value: &str) -> Vec<praxis_core::config::Condition> {
-    let mut headers = std::collections::HashMap::new();
+    let mut headers = HashMap::new();
     headers.insert(header.to_owned(), value.to_owned());
     vec![praxis_core::config::Condition::When(
         praxis_core::config::ConditionMatch {
@@ -3795,6 +3937,27 @@ fn when_path(prefix: &str) -> praxis_core::config::Condition {
         methods: None,
         headers: None,
     })
+}
+
+/// Register a noop HTTP filter whose type name is `name`.
+fn register_named_filter(registry: &mut FilterRegistry, name: &'static str, class: SecurityClass) {
+    let factory = FilterFactory::Http(Arc::new(move |_| Ok(Box::new(NamedNoopFilter(name)))));
+    registry
+        .register_with_class(name, factory, class)
+        .expect("test filter name must not collide with builtins");
+}
+
+/// Build a [`FilterEntry`] for a config-less custom filter.
+fn named_noop_entry(filter_type: &str, failure_mode: FailureMode) -> FilterEntry {
+    FilterEntry {
+        branch_chains: None,
+        conditions: vec![],
+        filter_type: filter_type.into(),
+        config: serde_yaml::Value::Null,
+        name: None,
+        response_conditions: vec![],
+        failure_mode,
+    }
 }
 
 /// Build an `Unless` condition that matches on a path prefix.

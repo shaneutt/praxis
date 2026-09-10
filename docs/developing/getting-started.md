@@ -99,7 +99,7 @@ insecure_options:
 
 | Flag | Effect |
 | ------ | -------- |
-| `allow_open_security_filters` | Allow security-critical filters (`ip_acl`, `forwarded_headers`) to use `failure_mode: open`. Without this flag, open security filters are rejected because a runtime error would bypass security enforcement. With this flag enabled, the error is demoted to a warning. |
+| `allow_open_security_filters` | Allow filters registered as `SecurityClass::Security` (built-in examples: `ip_acl`, `forwarded_headers`; also custom filters registered as Security) to use `failure_mode: open`. Without this flag, open security filters are rejected because a runtime error would bypass security enforcement. With this flag enabled, the error is demoted to a warning. |
 | `allow_private_endpoints` | Allow cluster endpoints to resolve to loopback, link-local, or cloud metadata addresses. Blocked by default as SSRF protection for upstream targets. |
 | `allow_private_health_checks` | Allow health check endpoints that resolve to loopback (`127.0.0.0/8`), link-local (`169.254.0.0/16`), or cloud metadata addresses. Blocked by default as SSRF protection. |
 | `allow_private_upstreams` | Allow upstream connections that resolve to private or reserved IP addresses at runtime. Without this flag, DNS-resolved upstream addresses in RFC 1918, loopback, link-local, CGNAT, and IPv6 unique-local ranges are rejected to prevent DNS rebinding and SSRF attacks. |
