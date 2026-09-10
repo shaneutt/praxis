@@ -449,20 +449,17 @@ impl FilterPipeline {
     /// Without this, a filter that loads an external document never picks up edits
     /// to it, because the reload gate only ever sees the main config's bytes.
     ///
-    /// Mirrors [`Self::apply_insecure_options`], including its limitation: only
-    /// top-level filters are walked, not filters nested inside branch chains. A
-    /// document referenced solely from a branch is therefore not observed. That is
-    /// the same blind spot the insecure-options walk already has, and widening both
-    /// belongs in one change rather than half of one here.
+    /// Branch sub-chains are walked too: their filters are active members of this
+    /// pipeline, so a document referenced solely from a branch has to be watched
+    /// like any other. Filters that embed whole nested pipelines (the iterative
+    /// request router) forward their own nested declarations from
+    /// [`HttpFilter::referenced_files`].
+    ///
+    /// [`HttpFilter::referenced_files`]: crate::HttpFilter::referenced_files
     pub fn referenced_files(&self) -> Vec<std::path::PathBuf> {
-        self.filters
-            .iter()
-            .filter_map(|pf| match &pf.filter {
-                crate::any_filter::AnyFilter::Http(f) => Some(f.referenced_files()),
-                crate::any_filter::AnyFilter::Tcp(_) => None,
-            })
-            .flatten()
-            .collect()
+        let mut files = Vec::new();
+        collect_referenced_files(&self.filters, &mut files);
+        files
     }
 
     /// Whether upstream hostnames are allowed to resolve to private or
@@ -484,7 +481,8 @@ impl FilterPipeline {
         self.allow_private_upstreams = allow;
     }
 
-    /// Apply [`InsecureOptions`] to all filters in the pipeline.
+    /// Apply [`InsecureOptions`] to all filters in the pipeline, including those
+    /// resolved inside branch chains.
     ///
     /// Delegates to each filter's [`apply_insecure_options`] method.
     /// Filters that support insecure overrides (e.g. CSRF log-only
@@ -493,11 +491,7 @@ impl FilterPipeline {
     /// [`apply_insecure_options`]: crate::HttpFilter::apply_insecure_options
     /// [`InsecureOptions`]: praxis_core::config::InsecureOptions
     pub fn apply_insecure_options(&self, options: &InsecureOptions) {
-        for pf in &self.filters {
-            if let crate::any_filter::AnyFilter::Http(f) = &pf.filter {
-                f.apply_insecure_options(options);
-            }
-        }
+        apply_insecure_options_to(&self.filters, options);
     }
 
     /// Apply a mutation to every pipeline directly embedded by a filter.
@@ -506,6 +500,37 @@ impl FilterPipeline {
             if let crate::any_filter::AnyFilter::Http(filter) = &mut pf.filter {
                 filter.visit_nested_pipelines(visitor);
             }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Branch-Aware Filter Walks
+// -----------------------------------------------------------------------------
+
+/// Collect the external documents `filters` and their branch chains declare.
+///
+/// Recursion depth is bounded by the branch nesting limit enforced during
+/// pipeline build (`MAX_BRANCH_DEPTH`).
+fn collect_referenced_files(filters: &[PipelineFilter], out: &mut Vec<std::path::PathBuf>) {
+    for pf in filters {
+        if let crate::any_filter::AnyFilter::Http(f) = &pf.filter {
+            out.extend(f.referenced_files());
+        }
+        for branch in &pf.branches {
+            collect_referenced_files(&branch.filters, out);
+        }
+    }
+}
+
+/// Apply `options` to `filters` and to every filter in their branch chains.
+fn apply_insecure_options_to(filters: &[PipelineFilter], options: &InsecureOptions) {
+    for pf in filters {
+        if let crate::any_filter::AnyFilter::Http(f) = &pf.filter {
+            f.apply_insecure_options(options);
+        }
+        for branch in &pf.branches {
+            apply_insecure_options_to(&branch.filters, options);
         }
     }
 }

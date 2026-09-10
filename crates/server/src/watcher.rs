@@ -81,15 +81,9 @@ pub(crate) struct WatcherParams {
     /// Documents the configured filters read, beyond the main config.
     ///
     /// These are watched and hashed alongside it, so editing one triggers a
-    /// reload. Collected once at startup and not updated afterward.
-    ///
-    /// The set only changes when the main config does, and that edit reloads on
-    /// its own because the main config passes the hash gate. What the reload does
-    /// not do is start watching the result: a document a filter points to only
-    /// after a reload is neither in this vec nor in the watched directories, so
-    /// later edits to it go unnoticed until the proxy restarts. Refreshing the
-    /// set means re-registering watch directories mid-loop and updating the
-    /// event filter, which belongs in its own change.
+    /// reload. This is the set collected at startup; the watch loop owns it from
+    /// there and re-derives it from the live pipelines after every successful
+    /// reload, because a reload can change which documents the filters read.
     pub(crate) referenced_files: Vec<PathBuf>,
 
     /// Listener metadata for admin `/api/pipelines`, swapped on reload.
@@ -140,7 +134,9 @@ async fn watch_loop(params: WatcherParams) {
 
     let watch_dirs = watch_dirs_for(&params.config_path, &params.referenced_files);
 
-    let _watcher = match setup_watcher(tx, &watch_dirs, &params.config_path, &params.referenced_files) {
+    // The sender is kept: re-registering the watch after the referenced
+    // document set changes needs a watcher wired to the same channel.
+    let watcher = match setup_watcher(tx.clone(), &watch_dirs, &params.config_path, &params.referenced_files) {
         Ok(w) => w,
         Err(e) => {
             error!(error = %e, "failed to start config file watcher");
@@ -154,7 +150,7 @@ async fn watch_loop(params: WatcherParams) {
         watched_directories = watch_dirs.len(),
         "config file watcher started",
     );
-    run_event_loop(&mut rx, params).await;
+    run_event_loop(&mut rx, &tx, watcher, params).await;
 }
 
 /// How long remains before another reload attempt is allowed.
@@ -194,19 +190,29 @@ async fn sleep_or_pending(delay: Option<Duration>) {
 
 /// Process filesystem events until shutdown is requested.
 #[expect(clippy::too_many_lines, reason = "startup pre-check and reload orchestration")]
-async fn run_event_loop(rx: &mut mpsc::Receiver<()>, params: WatcherParams) {
+async fn run_event_loop(
+    rx: &mut mpsc::Receiver<()>,
+    tx: &mpsc::Sender<()>,
+    mut watcher: RecommendedWatcher,
+    params: WatcherParams,
+) {
     // Move the initial config into the working copy: it has no other
     // reader, and cloning it would pin a second full config tree in
     // memory for the watcher's (i.e. the process's) lifetime.
     let mut current_config = params.initial_config;
     let mut content_hash = params.initial_content_hash;
+    // Owned from here on: a reload can point the filters at different
+    // documents, and the watch has to follow them.
+    let mut referenced_files = params.referenced_files;
     let mut consecutive_failures: u32 = 0;
     let mut last_failure: Option<Instant> = None;
 
     // Check for changes that may have occurred between config load and watcher startup
     let precheck_ok = handle_reload(
         &params.config_path,
-        &params.referenced_files,
+        &mut watcher,
+        tx,
+        &mut referenced_files,
         &mut current_config,
         &mut content_hash,
         &params.registry,
@@ -255,7 +261,9 @@ async fn run_event_loop(rx: &mut mpsc::Receiver<()>, params: WatcherParams) {
 
         let ok = handle_reload(
             &params.config_path,
-            &params.referenced_files,
+            &mut watcher,
+            tx,
+            &mut referenced_files,
             &mut current_config,
             &mut content_hash,
             &params.registry,
@@ -298,18 +306,39 @@ fn update_reload_backoff(ok: bool, consecutive_failures: &mut u32, last_failure:
     }
 }
 
-/// Read the config file and reload pipelines if content has changed.
+/// Outcome of one reload attempt.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ReloadOutcome {
+    /// The reload succeeded, or the content was unchanged and nothing was done.
+    Done,
+
+    /// The reload succeeded and changed which documents the live pipelines
+    /// read, so the filesystem watch has to be re-registered over the new set.
+    Rewatch,
+
+    /// The attempt failed (read, parse, or pipeline build); the caller arms
+    /// the retry backoff.
+    Failed,
+}
+
+/// Reload the config, following the documents it points the filters at.
 ///
-/// Returns `true` when the reload succeeds or when content is unchanged
-/// (no-op). Returns `false` on any error (read, parse, pipeline build).
-#[expect(
-    clippy::too_many_arguments,
-    clippy::too_many_lines,
-    reason = "orchestration function"
-)]
+/// Returns `true` when the reload succeeds or the content is unchanged (no-op),
+/// `false` on any error (read, parse, pipeline build).
+///
+/// A reload can change which external documents the live pipelines read. The
+/// watch is then re-registered over the new set and the attempt repeated,
+/// because re-registration necessarily happens after the reload has read those
+/// documents: an edit landing in that window produces no filesystem event, and
+/// only the repeated attempt, which re-hashes over the new set, notices it.
+/// Each repeat consumes a config change that really happened, so the loop ends
+/// as soon as the file stops moving.
+#[expect(clippy::too_many_arguments, reason = "orchestration function")]
 fn handle_reload(
     config_path: &std::path::Path,
-    referenced_files: &[PathBuf],
+    watcher: &mut RecommendedWatcher,
+    tx: &mpsc::Sender<()>,
+    referenced_files: &mut Vec<PathBuf>,
     current_config: &mut Config,
     content_hash: &mut u64,
     registry: &FilterRegistry,
@@ -323,6 +352,58 @@ fn handle_reload(
     subrequest_client: &praxis_core::subrequest::SubRequestClient,
     log_level: Option<&Arc<praxis_core::logging::LogLevelState>>,
 ) -> bool {
+    loop {
+        let outcome = reload_if_changed(
+            config_path,
+            referenced_files,
+            current_config,
+            content_hash,
+            registry,
+            pipelines,
+            bound,
+            listener_meta,
+            cluster_meta,
+            health_shutdown,
+            kv_stores,
+            session_stores,
+            subrequest_client,
+            log_level,
+        );
+        match outcome {
+            ReloadOutcome::Done => return true,
+            ReloadOutcome::Failed => return false,
+            ReloadOutcome::Rewatch => rewatch(watcher, tx, config_path, referenced_files),
+        }
+    }
+}
+
+/// Read the config file and reload pipelines if content has changed.
+///
+/// On success `referenced_files` is re-derived from the pipelines that are now
+/// live, and the recorded hash covers that same set, so the next event compares
+/// like with like. A changed set is reported as [`ReloadOutcome::Rewatch`]:
+/// only the caller can re-register the filesystem watch.
+#[expect(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    reason = "orchestration function"
+)]
+fn reload_if_changed(
+    config_path: &std::path::Path,
+    referenced_files: &mut Vec<PathBuf>,
+    current_config: &mut Config,
+    content_hash: &mut u64,
+    registry: &FilterRegistry,
+    pipelines: &ListenerPipelines,
+    bound: &BoundListeners,
+    listener_meta: &praxis_protocol::http::pingora::health::ListenerMetaStore,
+    cluster_meta: &praxis_protocol::http::pingora::health::ClusterMetaStore,
+    health_shutdown: &Arc<Mutex<CancellationToken>>,
+    kv_stores: &praxis_core::kv::KvStoreRegistry,
+    session_stores: &Arc<praxis_filter::SessionStoreRegistry>,
+    subrequest_client: &praxis_core::subrequest::SubRequestClient,
+    log_level: Option<&Arc<praxis_core::logging::LogLevelState>>,
+) -> ReloadOutcome {
     let content = match praxis_core::config::read_config_file(config_path) {
         Ok(c) => c,
         Err(e) => {
@@ -332,14 +413,14 @@ fn handle_reload(
                 "failed to read config file for reload"
             );
             praxis_protocol::http::pingora::metrics::record_config_reload_failure();
-            return false;
+            return ReloadOutcome::Failed;
         },
     };
 
     let new_hash = composite_hash(&content, referenced_files);
     if new_hash == *content_hash {
         tracing::debug!("config file content unchanged, skipping reload");
-        return true;
+        return ReloadOutcome::Done;
     }
 
     // The hash is recorded only once the reload succeeds. Recording it up front
@@ -360,7 +441,7 @@ fn handle_reload(
                 "config reload failed: invalid config"
             );
             praxis_protocol::http::pingora::metrics::record_config_reload_failure();
-            return false;
+            return ReloadOutcome::Failed;
         },
     };
 
@@ -380,15 +461,63 @@ fn handle_reload(
     ) {
         Ok(()) => {
             *current_config = new_config;
-            *content_hash = new_hash;
             praxis_protocol::http::pingora::metrics::record_config_reload_success();
-            true
+            // The pipelines that just went live may read a different set of
+            // external documents than the ones they replaced. Re-derive it from
+            // them rather than from the new config: asking the pipelines is what
+            // startup does, and rebuilding filters here to interrogate them
+            // would load their documents and open network connections again.
+            let live_referenced = pipelines.referenced_files();
+            if live_referenced == *referenced_files {
+                *content_hash = new_hash;
+                return ReloadOutcome::Done;
+            }
+            // `new_hash` covers the old document set. Re-hash over the new one,
+            // or the next event would see a difference that is an artifact of
+            // the two being computed over different sets.
+            *content_hash = composite_hash(&content, &live_referenced);
+            *referenced_files = live_referenced;
+            ReloadOutcome::Rewatch
         },
         Err(e) => {
             error!(error = %e, "config reload failed");
             praxis_protocol::http::pingora::metrics::record_config_reload_failure();
-            false
+            ReloadOutcome::Failed
         },
+    }
+}
+
+/// Re-register the filesystem watch over the current document set.
+///
+/// A reload can point the filters at documents that were not referenced when
+/// the watcher started. Those live in directories that may not be watched and
+/// in paths the event filter does not recognize, so without this an edit to a
+/// newly referenced document is invisible until the proxy restarts.
+///
+/// The replacement is built before the old watcher is dropped, so no window
+/// exists in which nothing is watched; the debounce absorbs any events both
+/// deliver. A failure keeps the existing watcher: the main config is still
+/// watched, and the next successful reload tries again.
+fn rewatch(
+    watcher: &mut RecommendedWatcher,
+    tx: &mpsc::Sender<()>,
+    config_path: &std::path::Path,
+    referenced_files: &[PathBuf],
+) {
+    let watch_dirs = watch_dirs_for(config_path, referenced_files);
+    match setup_watcher(tx.clone(), &watch_dirs, config_path, referenced_files) {
+        Ok(replacement) => {
+            *watcher = replacement;
+            info!(
+                referenced_documents = referenced_files.len(),
+                watched_directories = watch_dirs.len(),
+                "config watch re-registered for the reloaded document set",
+            );
+        },
+        Err(e) => error!(
+            error = %e,
+            "failed to re-register config watch; edits to newly referenced documents will not trigger a reload"
+        ),
     }
 }
 
@@ -703,9 +832,8 @@ mod tests {
 
     #[test]
     fn path_filter_matches_absolute_lexical_path() {
-        let _lock = CWD_MUTEX.get_or_init(Mutex::default).lock().unwrap();
         let dir = tempfile::tempdir().unwrap();
-        let _cwd = CwdGuard::new(dir.path());
+        let _cwd = crate::test_support::CwdGuard::new(dir.path());
 
         let subdir_rel = PathBuf::from("conf");
         std::fs::create_dir(&subdir_rel).unwrap();
@@ -726,11 +854,10 @@ mod tests {
 
     #[test]
     fn path_filter_matches_parent_relative_path() {
-        let _lock = CWD_MUTEX.get_or_init(Mutex::default).lock().unwrap();
         let dir = tempfile::tempdir().unwrap();
         let subdir = dir.path().join("sub");
         std::fs::create_dir(&subdir).unwrap();
-        let _cwd = CwdGuard::new(&subdir);
+        let _cwd = crate::test_support::CwdGuard::new(&subdir);
 
         let config_abs = dir.path().join("config.yaml");
         std::fs::write(&config_abs, "test").unwrap();
@@ -855,9 +982,8 @@ mod tests {
     /// cwd-joined spelling inotify reports on Linux.
     #[test]
     fn path_filter_matches_a_relative_referenced_document_by_absolute_spelling() {
-        let _lock = CWD_MUTEX.get_or_init(Mutex::default).lock().unwrap();
         let dir = tempfile::tempdir().unwrap();
-        let _cwd = CwdGuard::new(dir.path());
+        let _cwd = crate::test_support::CwdGuard::new(dir.path());
 
         let config = PathBuf::from("praxis.yaml");
         let doc_rel = PathBuf::from("policy.yaml");
@@ -958,12 +1084,13 @@ mod tests {
 
         let original_hash = composite_hash(VALID_YAML, &[]);
         let mut hash = original_hash;
+        let mut referenced = Vec::new();
 
         // An edit that cannot be parsed stands in for any failing reload.
         std::fs::write(&config_path, "this: is: not: valid: praxis: config\n").unwrap();
-        let ok = handle_reload(
+        let outcome = reload_if_changed(
             &config_path,
-            &[],
+            &mut referenced,
             &mut config,
             &mut hash,
             &registry,
@@ -978,7 +1105,11 @@ mod tests {
             None,
         );
 
-        assert!(!ok, "an unparseable config must report failure");
+        assert_eq!(
+            outcome,
+            ReloadOutcome::Failed,
+            "an unparseable config must report failure"
+        );
         assert_eq!(
             hash, original_hash,
             "a failed reload must leave the hash untouched, or the retry is skipped forever",
@@ -987,9 +1118,9 @@ mod tests {
         // Recovery: the same path now holds something valid, and because the hash
         // was never advanced the attempt is not short-circuited.
         std::fs::write(&config_path, VALID_YAML).unwrap();
-        let recovered = handle_reload(
+        let recovered = reload_if_changed(
             &config_path,
-            &[],
+            &mut referenced,
             &mut config,
             &mut hash,
             &registry,
@@ -1003,7 +1134,97 @@ mod tests {
             &subrequest_client,
             None,
         );
-        assert!(recovered, "a subsequent valid config must reload");
+        assert_ne!(
+            recovered,
+            ReloadOutcome::Failed,
+            "a subsequent valid config must reload"
+        );
+    }
+
+    /// After the document set changes, the recorded hash has to cover the new
+    /// set. Leaving the hash computed over the old one makes the very next
+    /// event look like a content change and rebuild every pipeline for nothing.
+    #[test]
+    fn successful_reload_rehashes_over_the_new_document_set() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("praxis.yaml");
+        let first_doc = dir.path().join("first.yaml");
+        let second_doc = dir.path().join("second.yaml");
+        std::fs::write(&first_doc, "plugins: []\n").unwrap();
+        std::fs::write(&second_doc, "plugins: [{name: other}]\n").unwrap();
+
+        let config_referencing = |doc: &std::path::Path| {
+            format!(
+                "listeners:\n  - name: web\n    address: \"127.0.0.1:8080\"\n    filter_chains: [main]\n\
+                 filter_chains:\n  - name: main\n    filters:\n      - filter: document_reader\n        \
+                 document: \"{}\"\n      - filter: static_response\n        status: 200\n",
+                doc.display()
+            )
+        };
+
+        let first_yaml = config_referencing(&first_doc);
+        std::fs::write(&config_path, &first_yaml).unwrap();
+        let mut config = Config::from_yaml(&first_yaml).unwrap();
+        let registry = registry_with_document_filter();
+        let health_registry = Arc::new(std::collections::HashMap::new());
+        let kv_stores = praxis_core::kv::KvStoreRegistry::new();
+        let session_stores = Arc::new(praxis_filter::SessionStoreRegistry::new());
+        let subrequest_client =
+            praxis_core::subrequest::SubRequestClient::new(praxis_core::subrequest::SubRequestConnector::new(8, None));
+        let pipelines = crate::pipelines::resolve_pipelines(
+            &config,
+            &registry,
+            &health_registry,
+            &kv_stores,
+            &session_stores,
+            &subrequest_client,
+        )
+        .unwrap();
+        let listener_meta = praxis_protocol::http::pingora::health::new_listener_meta_store(
+            praxis_protocol::http::pingora::health::listener_meta_from_config(&config),
+        );
+        let cluster_meta = praxis_protocol::http::pingora::health::new_cluster_meta_store(
+            praxis_protocol::http::pingora::health::cluster_meta_from_config(&config),
+        );
+
+        let mut referenced = pipelines.referenced_files();
+        let mut hash = composite_hash(&first_yaml, &referenced);
+
+        let bound = BoundListeners::from_config(&config);
+        let second_yaml = config_referencing(&second_doc);
+        std::fs::write(&config_path, &second_yaml).unwrap();
+        let outcome = reload_if_changed(
+            &config_path,
+            &mut referenced,
+            &mut config,
+            &mut hash,
+            &registry,
+            &pipelines,
+            &bound,
+            &listener_meta,
+            &cluster_meta,
+            &Arc::new(Mutex::new(CancellationToken::new())),
+            &kv_stores,
+            &session_stores,
+            &subrequest_client,
+            None,
+        );
+
+        assert_eq!(
+            outcome,
+            ReloadOutcome::Rewatch,
+            "a reload that repoints the filters at another document must ask for a rewatch"
+        );
+        assert_eq!(
+            referenced,
+            vec![second_doc.clone()],
+            "the watched set must follow the pipelines that are now live"
+        );
+        assert_eq!(
+            hash,
+            composite_hash(&second_yaml, &[second_doc]),
+            "the recorded hash must cover the new document set"
+        );
     }
 
     #[test]
@@ -1223,9 +1444,8 @@ mod tests {
 
     #[test]
     fn watcher_starts_with_bare_filename() {
-        let _lock = CWD_MUTEX.get_or_init(Mutex::default).lock().unwrap();
         let dir = tempfile::tempdir().unwrap();
-        let _cwd = CwdGuard::new(dir.path());
+        let _cwd = crate::test_support::CwdGuard::new(dir.path());
 
         std::fs::write("praxis.yaml", VALID_YAML).unwrap();
 
@@ -1703,9 +1923,165 @@ mod tests {
         shutdown.cancel();
     }
 
+    /// A reload can point the filters at a document that was not referenced when
+    /// the watcher started. That document has to be watched from then on, or the
+    /// operator's edits to it are silently ignored until the proxy restarts.
+    #[test]
+    fn watcher_follows_documents_referenced_only_after_a_reload() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_path = dir.path().join("praxis.yaml");
+        // Separate directories: the newly referenced document must bring its own
+        // directory under watch, not ride along on one that already was.
+        let first_dir = dir.path().join("first");
+        let second_dir = dir.path().join("second");
+        std::fs::create_dir(&first_dir).unwrap();
+        std::fs::create_dir(&second_dir).unwrap();
+        let first_doc = first_dir.join("policy.yaml");
+        let second_doc = second_dir.join("policy.yaml");
+        std::fs::write(&first_doc, "plugins: []\n").unwrap();
+        std::fs::write(&second_doc, "plugins: []\n").unwrap();
+
+        let config_referencing = |doc: &std::path::Path| {
+            format!(
+                "listeners:\n  - name: web\n    address: \"127.0.0.1:8080\"\n    filter_chains: [main]\n\
+                 filter_chains:\n  - name: main\n    filters:\n      - filter: document_reader\n        \
+                 document: \"{}\"\n      - filter: static_response\n        status: 200\n",
+                doc.display()
+            )
+        };
+
+        let first_yaml = config_referencing(&first_doc);
+        std::fs::write(&config_path, &first_yaml).unwrap();
+        let config = Config::from_yaml(&first_yaml).unwrap();
+        let registry = Arc::new(registry_with_document_filter());
+        let health_registry = Arc::new(std::collections::HashMap::new());
+        let kv_stores = praxis_core::kv::KvStoreRegistry::new();
+        let subrequest_client =
+            praxis_core::subrequest::SubRequestClient::new(praxis_core::subrequest::SubRequestConnector::new(8, None));
+        let pipelines = Arc::new(
+            crate::pipelines::resolve_pipelines(
+                &config,
+                &registry,
+                &health_registry,
+                &kv_stores,
+                &Arc::new(praxis_filter::SessionStoreRegistry::new()),
+                &subrequest_client,
+            )
+            .unwrap(),
+        );
+        let referenced_files = pipelines.referenced_files();
+        assert_eq!(
+            referenced_files,
+            vec![first_doc.clone()],
+            "the startup pipelines must declare the first document"
+        );
+        let shutdown = CancellationToken::new();
+
+        let _handle = spawn_config_watcher(WatcherParams {
+            config_path: config_path.clone(),
+            health_shutdown: Arc::new(Mutex::new(CancellationToken::new())),
+            initial_content_hash: composite_hash(&first_yaml, &referenced_files),
+            initial_config: config.clone(),
+            kv_stores: praxis_core::kv::KvStoreRegistry::new(),
+            bound_listeners: BoundListeners::from_config(&config),
+            referenced_files,
+            session_stores: Arc::new(praxis_filter::SessionStoreRegistry::new()),
+            pipelines: Arc::clone(&pipelines),
+            listener_meta: praxis_protocol::http::pingora::health::new_listener_meta_store(
+                praxis_protocol::http::pingora::health::listener_meta_from_config(&config),
+            ),
+            cluster_meta: praxis_protocol::http::pingora::health::new_cluster_meta_store(
+                praxis_protocol::http::pingora::health::cluster_meta_from_config(&config),
+            ),
+            registry: Arc::clone(&registry),
+            shutdown: shutdown.clone(),
+            subrequest_client: praxis_core::subrequest::SubRequestClient::new(
+                praxis_core::subrequest::SubRequestConnector::new(8, None),
+            ),
+            log_level: None,
+        });
+
+        std::thread::sleep(Duration::from_millis(WATCHER_STARTUP_MS));
+
+        // Repoint the config at the second document. This edit reloads on its
+        // own: the main config is watched from the start.
+        let start_ptr = Arc::as_ptr(&pipelines.get("web").unwrap().load());
+        std::fs::write(&config_path, config_referencing(&second_doc)).unwrap();
+        poll_until(Duration::from_secs(5), || {
+            Arc::as_ptr(&pipelines.get("web").unwrap().load()) != start_ptr
+        });
+        let after_repoint = Arc::as_ptr(&pipelines.get("web").unwrap().load());
+        assert_ne!(
+            start_ptr, after_repoint,
+            "repointing the config at another document should reload"
+        );
+
+        // The main config is now byte-stable; only the newly referenced document
+        // changes. Nothing reloads unless the watcher followed it.
+        std::fs::write(&second_doc, "plugins: [{name: added}]\n").unwrap();
+        poll_until(Duration::from_secs(5), || {
+            Arc::as_ptr(&pipelines.get("web").unwrap().load()) != after_repoint
+        });
+
+        assert_ne!(
+            after_repoint,
+            Arc::as_ptr(&pipelines.get("web").unwrap().load()),
+            "editing a document the reload started referencing must trigger a reload",
+        );
+
+        shutdown.cancel();
+    }
+
     // -------------------------------------------------------------------------
     // Test Utilities
     // -------------------------------------------------------------------------
+
+    /// Minimal filter that declares one external document, standing in for the
+    /// real filters whose configuration lives outside the main config file.
+    struct DocumentFilter {
+        /// Document this filter reads its configuration from.
+        document: PathBuf,
+    }
+
+    #[async_trait::async_trait]
+    impl praxis_filter::HttpFilter for DocumentFilter {
+        fn name(&self) -> &'static str {
+            "document_reader"
+        }
+
+        async fn on_request(
+            &self,
+            _ctx: &mut praxis_filter::HttpFilterContext<'_>,
+        ) -> Result<praxis_filter::FilterAction, praxis_filter::FilterError> {
+            Ok(praxis_filter::FilterAction::Continue)
+        }
+
+        fn referenced_files(&self) -> Vec<PathBuf> {
+            vec![self.document.clone()]
+        }
+    }
+
+    /// Registry of the built-ins plus [`DocumentFilter`], registered as
+    /// `document_reader` and configured with a `document` path.
+    fn registry_with_document_filter() -> FilterRegistry {
+        let mut registry = FilterRegistry::with_builtins();
+        registry
+            .register(
+                "document_reader",
+                praxis_filter::FilterFactory::Http(Arc::new(|config: &serde_yaml::Value| {
+                    let document = config
+                        .get("document")
+                        .and_then(serde_yaml::Value::as_str)
+                        .ok_or_else(|| praxis_filter::FilterError::from("document_reader: 'document' is required"))?;
+                    let filter: Box<dyn praxis_filter::HttpFilter> = Box::new(DocumentFilter {
+                        document: PathBuf::from(document),
+                    });
+                    Ok(filter)
+                })),
+            )
+            .unwrap();
+        registry
+    }
 
     /// Build a `notify::Event` with the given paths (for `PathFilter` unit tests).
     fn make_event(paths: Vec<PathBuf>) -> notify::Event {
@@ -1724,27 +2100,6 @@ mod tests {
                 return;
             }
             std::thread::sleep(Duration::from_millis(20));
-        }
-    }
-
-    /// Serializes tests that mutate the process working directory.
-    static CWD_MUTEX: std::sync::OnceLock<Mutex<()>> = std::sync::OnceLock::new();
-
-    /// RAII guard that restores the process working directory on drop.
-    struct CwdGuard(PathBuf);
-
-    impl CwdGuard {
-        /// Change to `path` and capture the original directory for restore.
-        fn new(path: &std::path::Path) -> Self {
-            let original = std::env::current_dir().unwrap();
-            std::env::set_current_dir(path).unwrap();
-            Self(original)
-        }
-    }
-
-    impl Drop for CwdGuard {
-        fn drop(&mut self) {
-            std::env::set_current_dir(&self.0).expect("failed to restore working directory");
         }
     }
 

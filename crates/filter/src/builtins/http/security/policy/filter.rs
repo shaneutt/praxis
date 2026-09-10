@@ -1280,9 +1280,11 @@ impl HttpFilter for PolicyFilter {
         // body bytes with a JSON-RPC error envelope so the client
         // sees a structured deny instead of the upstream's payload.
         // Fits within the original Content-Length via the same
-        // pad-with-trailing-spaces trick used for ReadWrite rewrites
-        // (the envelope is almost always shorter than a real
-        // response body, so padding is the common case).
+        // pad-with-trailing-spaces trick used for ReadWrite rewrites.
+        // Padding is the common case, but a short upstream result can
+        // commit a Content-Length below the envelope's size, and the
+        // envelope is then truncated to unparseable JSON, see
+        // `fit_to_original_length` for why that is accepted.
         if !cmf_result.continue_processing {
             tracing::warn!(
                 target: "policy.filter",
@@ -1363,10 +1365,22 @@ impl HttpFilter for PolicyFilter {
 /// desync: the trailing bytes would be parsed as the start of the next
 /// response (a response-smuggling primitive). Truncating to
 /// `original_len` corrupts the JSON the client parses but cannot smuggle
-/// — it is the safe failure mode. Callers that can do better (the
-/// response-rewrite path) substitute a length-fitting deny envelope
-/// before reaching the grow case, so truncation is a last-resort
-/// backstop, not the common path.
+/// it is the safe failure mode.
+///
+/// Truncation is not only a rewrite backstop: the deny paths reach it
+/// too. A JSON-RPC error envelope needs roughly a hundred bytes, and a
+/// short upstream result (`{"jsonrpc":"2.0","id":1,"result":{}}` is 36)
+/// commits a `Content-Length` below that. The client then receives a
+/// prefix of the envelope, which does not parse as JSON. That is the
+/// accepted trade-off, and it is still fail-closed in the sense that
+/// matters: the truncated bytes are the gateway's own envelope, so no
+/// unredacted upstream payload reaches the client and the client cannot
+/// consume the denied response. What is lost is diagnosability, the
+/// response phase can no longer change status or headers either, so
+/// there is no `X-Policy-Violation` to fall back on. Emitting a valid
+/// but shorter body is not an option: nothing carrying the violation
+/// fits, and padding cannot shrink. Repairing this properly needs a
+/// response-side `Content-Length` rewrite, which praxis does not have.
 ///
 /// Used only on the response side. The request side is unaffected:
 /// praxis repairs request framing via `mutated_request_body_len` →
