@@ -302,6 +302,27 @@ pub fn client_cert_from_cached(cached: &praxis_tls::CachedClientCert) -> pingora
 // SNI
 // ---------------------------------------------------------------------------
 
+/// Whether a URI host is an IP literal rather than a DNS name.
+///
+/// Accepts the bracketed form an IPv6 authority is written in, so a host
+/// taken straight from a URL can be tested without unwrapping it first.
+///
+/// ```
+/// use praxis_core::connectivity::peer;
+///
+/// assert!(peer::is_ip_literal("127.0.0.1"));
+/// assert!(peer::is_ip_literal("[::1]"));
+/// assert!(!peer::is_ip_literal("api.example.com"));
+/// ```
+#[must_use]
+pub fn is_ip_literal(host: &str) -> bool {
+    host.strip_prefix('[')
+        .and_then(|h| h.strip_suffix(']'))
+        .unwrap_or(host)
+        .parse::<std::net::IpAddr>()
+        .is_ok()
+}
+
 /// Derive an SNI hostname from an `address` string in `host:port` form.
 ///
 /// Returns the host portion if it is a DNS name. Returns an empty
@@ -318,8 +339,7 @@ pub fn client_cert_from_cached(cached: &praxis_tls::CachedClientCert) -> pingora
 /// [RFC 6066]: https://datatracker.ietf.org/doc/html/rfc6066
 pub fn derive_sni(address: &str) -> String {
     let host = address.rsplit_once(':').map_or(address, |(h, _)| h);
-    let host_bare = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')).unwrap_or(host);
-    if host_bare.parse::<std::net::IpAddr>().is_ok() {
+    if is_ip_literal(host) {
         tracing::debug!(
             address,
             "upstream is an IP without explicit SNI; TLS hostname verification is meaningless"

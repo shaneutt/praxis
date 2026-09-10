@@ -27,6 +27,23 @@ ambiguous configuration:
   traversal (`..`).
 - Health check targets reject loopback, link-local,
   and cloud metadata addresses (SSRF protection).
+- Policy engine outbound calls (JWKS, token exchange,
+  CIBA backchannel) go through the proxy's sub-request
+  connector and refuse loopback, RFC 1918, link-local
+  (including cloud metadata), and CGNAT addresses. The
+  check runs on the resolved address at dial time, so
+  there is no second lookup to rebind. Override with
+  the `policy` filter's `allow_private_idp` for an
+  in-cluster identity provider.
+- Policy engine TLS verifies against the platform
+  trust store, which honours `SSL_CERT_FILE` and
+  `SSL_CERT_DIR`, so an image must ship CA
+  certificates and those variables are part of the
+  trust decision. Certificate and hostname
+  verification are always on. Cluster `tls` settings
+  do not reach these calls, so a private-CA or mTLS
+  identity provider is not supported today, and policy
+  calls cannot reuse cluster-TLS connections.
 - Root execution (UID 0) rejected by default.
 - Supply chain audited via `cargo audit` and
   `cargo deny`.

@@ -69,8 +69,10 @@ pub(crate) struct PolicyFilterConfig {
 
     /// Allow policy-engine calls to private or loopback identity providers.
     ///
-    /// Disabled by default to limit SSRF through policy-defined endpoints. This
-    /// does not affect Praxis upstreams, which use
+    /// Disabled by default to limit SSRF through policy-defined endpoints.
+    /// The check runs on the resolved address at dial time, so a hostname
+    /// answering with a private address is refused too. This does not
+    /// affect Praxis upstreams, which use
     /// `insecure_options.allow_private_endpoints`.
     #[serde(default)]
     pub allow_private_idp: bool,
